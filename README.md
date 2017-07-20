@@ -1,2 +1,3 @@
-# fuse
-Simple monitoring and alerting system for consuls services and influx metrics
+# Fuse
+Simple monitoring and alerting system for consul's services and influx metrics.
+Currently in **active** development.
