@@ -27,9 +27,9 @@ func NewSlackClient(channel string, token string, icon_url string) *SlackClient 
 }
 
 func (s *SlackClient) Good(name string, msg string) error {
-	attachment := slack.Attachment{
+    attachment := slack.Attachment{
         Title: fmt.Sprintf("Service \"%s\"", name),
-		Text: msg,
+        Text: msg,
         Fields: []slack.AttachmentField{
             slack.AttachmentField{
                 Title: "Service",
@@ -43,17 +43,17 @@ func (s *SlackClient) Good(name string, msg string) error {
             },
         },
         Color: "good",
-	}
-	s.params.Attachments = []slack.Attachment{attachment}
+    }
+    s.params.Attachments = []slack.Attachment{attachment}
 
     _, _, err := s.api.PostMessage(s.channel, "", *s.params)
     return err
 }
 
 func (s *SlackClient) Warn(name string, msg string) error {
-	attachment := slack.Attachment{
+    attachment := slack.Attachment{
         Title: fmt.Sprintf("Service \"%s\"", name),
-		Text: msg,
+        Text: msg,
         Fields: []slack.AttachmentField{
             slack.AttachmentField{
                 Title: "Service",
@@ -67,17 +67,17 @@ func (s *SlackClient) Warn(name string, msg string) error {
             },
         },
         Color: "warning",
-	}
-	s.params.Attachments = []slack.Attachment{attachment}
+    }
+    s.params.Attachments = []slack.Attachment{attachment}
 
     _, _, err := s.api.PostMessage(s.channel, "", *s.params)
     return err
 }
 
 func (s *SlackClient) Crit(name string, msg string) error {
-	attachment := slack.Attachment{
+    attachment := slack.Attachment{
         Title: fmt.Sprintf("Service \"%s\"", name),
-		Text: msg,
+        Text: msg,
         Fields: []slack.AttachmentField{
             slack.AttachmentField{
                 Title: "Service",
@@ -91,8 +91,8 @@ func (s *SlackClient) Crit(name string, msg string) error {
             },
         },
         Color: "danger",
-	}
-	s.params.Attachments = []slack.Attachment{attachment}
+    }
+    s.params.Attachments = []slack.Attachment{attachment}
 
     _, _, err := s.api.PostMessage(s.channel, "", *s.params)
     return err

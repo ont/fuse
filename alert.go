@@ -1,9 +1,6 @@
 package main
 
-import "sync"
-
-var onceNotifer  sync.Once
-var notifer      *Notifer
+import "fmt"
 
 type Notifer struct {
     Alerters map[string]Alerter
@@ -15,13 +12,10 @@ type Alerter interface {
     Crit(name string, msg string) error
 }
 
-func GetNotifer() *Notifer {
-    onceNotifer.Do(func(){
-        notifer = &Notifer{
-            Alerters: make(map[string]Alerter),
-        }
-    })
-    return notifer
+func NewNotifer() *Notifer {
+    return &Notifer{
+        Alerters: make(map[string]Alerter),
+    }
 }
 
 func (n *Notifer) AddAlerter(channel string, alerter Alerter){
@@ -30,19 +24,34 @@ func (n *Notifer) AddAlerter(channel string, alerter Alerter){
 
 func (n *Notifer) Good(channels interface{}, name string, msg string) error {
     return unpackChannels(channels, func(channel string) error {
-        return n.Alerters[channel].Good(name, msg)
+        fmt.Println("[i] alert: send Good to", channel)
+        err := n.Alerters[channel].Good(name, msg)
+        if err != nil {
+            fmt.Println("[!] alert: error during sending -", err)
+        }
+        return err
     })
 }
 
 func (n *Notifer) Warn(channels interface{}, name string, msg string) error {
     return unpackChannels(channels, func(channel string) error {
-        return n.Alerters[channel].Warn(name, msg)
+        fmt.Println("[i] alert: send Warn to", channel)
+        err := n.Alerters[channel].Warn(name, msg)
+        if err != nil {
+            fmt.Println("[!] alert: error during sending -", err)
+        }
+        return err
     })
 }
 
 func (n *Notifer) Crit(channels interface{}, name string, msg string) error {
     return unpackChannels(channels, func(channel string) error {
-        return n.Alerters[channel].Crit(name, msg)
+        fmt.Println("[i] alert: send Crit to", channel)
+        err := n.Alerters[channel].Crit(name, msg)
+        if err != nil {
+            fmt.Println("[!] alert: error during sending -", err)
+        }
+        return err
     })
 }
 

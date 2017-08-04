@@ -2,7 +2,7 @@ package main
 
 import (
     "errors"
-    "github.com/davecgh/go-spew/spew"
+    //"github.com/davecgh/go-spew/spew"
     . "github.com/yhirose/go-peg"
 )
 
@@ -11,20 +11,30 @@ type Option struct {
     Value  string
 }
 
-func Parse(text string) (*Consul, error) {
+type ParseResult struct {
+    Alerters map[string]Alerter
+    Monitors map[string]Monitor
+}
+
+func Parse(text string) (*ParseResult, error) {
     val, err := getParser().ParseAndGetValue(text, nil)
     if err != nil {
         return nil, err
     }
 
-    if val, ok := val.(*Consul); ok {
+    if val, ok := val.(*ParseResult); ok {
         return val, nil
     }
 
-    return nil, errors.New("Result is not *Consul")
+    return nil, errors.New("Error during parsing")
 }
 
 func getParser() *Parser {
+    result := &ParseResult{
+        make(map[string]Alerter),
+        make(map[string]Monitor),
+    }
+
     parser, _ := NewParser(`
         CONFIG  ← SECTION+
         SECTION ← CONSUL / SLACK
@@ -32,7 +42,7 @@ func getParser() *Parser {
         CONSUL  ← 'consul' '{' OPTION+ SERVICE+ '}'
         SERVICE ← 'service' '"' STRING '"' ('{' OPTION+ '}')?
         OPTION  ← KEY '=' VALUE
-        
+
         # Basic items
         STRING  ←  < (!'"' .)+ >
         KEY     ←  < (![ =] .)+ >
@@ -43,10 +53,14 @@ func getParser() *Parser {
 
     g := parser.Grammar
 
+    g["CONFIG"].Action = func(v *Values, d Any) (Any, error) {
+        return result, nil
+    }
+
     g["SLACK"].Action = func(v *Values, d Any) (Any, error) {
         options := parseOptions(v)
 
-        spew.Dump(options)
+        //spew.Dump(options)
         channel, ok := options["channel"]
         if !ok {
             panic("Slack: 'channel' option is required!")
@@ -60,10 +74,7 @@ func getParser() *Parser {
         icon := options["icon_url"]
 
         //spew.Dump("CREATING SLACK:", channel, token, icon)
-        GetNotifer().AddAlerter("slack",
-            NewSlackClient(channel, token, icon),
-        )
-
+        result.Alerters["slack"] = NewSlackClient(channel, token, icon)
         return nil, nil
     }
 
@@ -77,9 +88,7 @@ func getParser() *Parser {
             }
         }
 
-        GetFuse().AddMonitor(
-            NewConsul(services, options),
-        )
+        result.Monitors["consul"] = NewConsul(services, options)
         return nil, nil
     }
 
@@ -102,12 +111,12 @@ func getParser() *Parser {
     }
 
     g["KEY"].Action = func(v *Values, d Any) (Any, error) {
-        spew.Dump("KEY", v.Token())
+        //spew.Dump("KEY", v.Token())
         return v.Token(), nil
     }
 
     g["VALUE"].Action = func(v *Values, d Any) (Any, error) {
-        spew.Dump("VALUE", v.Token())
+        //spew.Dump("VALUE", v.Token())
         return v.Token(), nil
     }
 

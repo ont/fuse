@@ -1,34 +1,42 @@
 package main
 
 import (
-	//"fmt"
+    "os"
+    "fmt"
+    "io/ioutil"
     //"strconv"
-    "github.com/davecgh/go-spew/spew"
+    //"github.com/davecgh/go-spew/spew"
 )
 
 
 func main() {
-
-    // Parse
-    text := `
-    slack {
-        channel = #test_
-        token = xoxb-77537041330-szNcfH1bvC05LJw8DUOR3s90
-        icon_url = https://s3-us-west-2.amazonaws.com/slack-files2/avatars/2015-04-13/4412399782_938284a426b058dc8dd7_36.jpg
+    // load config
+    if len(os.Args) == 1 {
+        fmt.Fprintln(os.Stderr, "error: no config specified")
+        fmt.Fprintln(os.Stderr, "usage: fuse [config]")
+        os.Exit(1)
     }
-    consul {
-        alert = slack
-        service "consul"
-        service "grafana" {
-            good = 5
-            warn = 5
-            crit = 10
-        }
-    }`
-    Parse(text)
+    bytes, err := ioutil.ReadFile(os.Args[1])
 
-    spew.Dump(GetFuse())
-    GetFuse().StartChecking(
-        GetNotifer(),
-    )
+    // parse config
+    result, err := Parse(string(bytes))
+    if err != nil {
+        fmt.Fprintln(os.Stderr, "error during parsing config file:", err)
+        os.Exit(1)
+    }
+
+    // prepare notifier
+    notifer := NewNotifer()
+    for name, alerter := range result.Alerters {
+        notifer.AddAlerter(name, alerter)
+    }
+
+    // prepare monitors and create fuse
+    fuse := NewFuse()
+    for _, monitor := range result.Monitors {
+        fuse.AddMonitor(monitor)
+    }
+
+    // start monitor's gorutines and wait
+    fuse.RunWith(notifer)
 }
