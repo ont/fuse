@@ -2,7 +2,7 @@ package main
 
 import (
     "errors"
-    //"github.com/davecgh/go-spew/spew"
+    "github.com/davecgh/go-spew/spew"
     . "github.com/yhirose/go-peg"
 )
 
@@ -37,14 +37,25 @@ func getParser() *Parser {
 
     parser, _ := NewParser(`
         CONFIG  ← SECTION+
-        SECTION ← CONSUL / SLACK
+        SECTION ← CONSUL / SLACK / INFLUX
+
         SLACK   ← 'slack' '{' OPTION+ '}'
+
         CONSUL  ← 'consul' '{' OPTION+ SERVICE+ '}'
         SERVICE ← 'service' STRING ('{' OPTION+ '}')?
-        OPTION  ← KEY '=' STRING
+
+        INFLUX   ← 'influx' '{' TEMPLATE+ '}'
+        TEMPLATE ← 'template' FNAME '(' (ARG ',')? ARG ')' '{' BODY '}'
+
 
         # Basic items
+        OPTION  ←  KEY '=' STRING
         STRING  ←  '"' < (!'"' .)+ > '"'
+
+        FNAME   ←  < (!'(' .)+ >
+        ARG     ←  < (![,)] .)+ >  # any chars except ',' or ')'
+        BODY    ←  < (![}] .)+ >
+
         KEY     ←  < (![ =] .)+ >
         VALUE   ←  < (![ \n] .)+ >
 
@@ -124,6 +135,10 @@ func getParser() *Parser {
         return v.Token(), nil
     }
 
+    g["FNAME"].Action = func(v *Values, d Any) (Any, error) {
+        spew.Dump("FNAME", v.Token())
+        return v.Token(), nil
+    }
     return parser
 }
 
