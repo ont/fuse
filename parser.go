@@ -40,11 +40,11 @@ func getParser() *Parser {
         SECTION ← CONSUL / SLACK
         SLACK   ← 'slack' '{' OPTION+ '}'
         CONSUL  ← 'consul' '{' OPTION+ SERVICE+ '}'
-        SERVICE ← 'service' '"' STRING '"' ('{' OPTION+ '}')?
-        OPTION  ← KEY '=' VALUE
+        SERVICE ← 'service' STRING ('{' OPTION+ '}')?
+        OPTION  ← KEY '=' STRING
 
         # Basic items
-        STRING  ←  < (!'"' .)+ >
+        STRING  ←  '"' < (!'"' .)+ > '"'
         KEY     ←  < (![ =] .)+ >
         VALUE   ←  < (![ \n] .)+ >
 

@@ -1,6 +1,5 @@
 package main
 
-import "os"
 import "fmt"
 import "time"
 import "strconv"
@@ -21,6 +20,7 @@ type Service struct {
 
 func NewConsul(services []*Service, defaults map[string]string) *Consul {
     defaultsFull := map[string]string{
+        "url" : "localhost:8500",
         "interval" : "5",
         "good"     : "2",
         "warn"     : "3",
@@ -33,8 +33,7 @@ func NewConsul(services []*Service, defaults map[string]string) *Consul {
 
     config := api.DefaultConfig()
 
-    // TODO: move outside this function
-    config.Address = os.Getenv("FUSE_CONSUL_ADDRESS")
+    config.Address = defaultsFull["url"]
 
     client, err := api.NewClient(config)
 
