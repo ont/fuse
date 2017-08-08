@@ -14,7 +14,6 @@ type Consul struct {
 
 type Service struct {
     Name     string
-    Options  map[string]string
     trigger  *Trigger
 }
 
@@ -22,9 +21,6 @@ func NewConsul(services []*Service, defaults map[string]string) *Consul {
     defaultsFull := map[string]string{
         "url" : "localhost:8500",
         "interval" : "5",
-        "good"     : "2",
-        "warn"     : "3",
-        "crit"     : "5",
         "alert"    : "",
     }
     for k,v := range defaults {
@@ -61,6 +57,7 @@ func (c *Consul) RunWith(notifer *Notifer){
 
     c.addTriggers(notifer, interval)
 
+    fmt.Println("[i] consul: running...")
     for {
         services, _, err := c.catalog.Services(nil)
 
@@ -76,51 +73,51 @@ func (c *Consul) RunWith(notifer *Notifer){
 }
 
 func (c *Consul) addTriggers(notifer *Notifer, interval int){
+    channel := c.defaults["alert"]
+
     for _, service := range c.Services {
+        if service.trigger == nil {
+            service.trigger = c.defaultTrigger()
+        }
 
-        good := c.getIntOption("good", service)
-        warn := c.getIntOption("warn", service)
-        crit := c.getIntOption("crit", service)
-        channel := c.getStringOption("alert", service)
-
-        name := service.Name   // without this assigment closures doesn't catches right value for service name
-        service.trigger = NewTrigger(
-            good, warn, crit,
-            func() error {
-                return notifer.Good(channel, name, fmt.Sprintf("Service is online more than %d sec.", interval * good))
-            },
-            func() error {
-                return notifer.Warn(channel, name, fmt.Sprintf("Service is offline more than %d sec.", interval * warn))
-            },
-            func() error {
-                return notifer.Crit(channel, name, fmt.Sprintf("Service is offline more than %d sec.", interval * crit))
-            },
-        )
+        name := service.Name
+        service.trigger.callback = func(state *State) error {
+            var err error
+            switch state.Name {
+                case "good": err = notifer.Good(channel, name, fmt.Sprintf("Service is online more than %d sec.", interval * state.Cycles))
+                case "warn": err = notifer.Warn(channel, name, fmt.Sprintf("Service is offline more than %d sec.", interval * state.Cycles))
+                case "crit": err = notifer.Crit(channel, name, fmt.Sprintf("Service is offline more than %d sec.", interval * state.Cycles))
+            }
+            return err
+        }
     }
 }
 
-func (c *Consul) getIntOption(name string, service *Service) int {
-    str := c.getOptionFor(name, service)
-    value, err := strconv.Atoi(str)
+func (c *Consul) defaultTrigger() *Trigger {
+    trigger := NewTrigger(nil)
 
-    // TODO: better exit message (without stacktrace)
-    if err != nil {
-        panic(err)
-    }
+    trigger.AddState(&State{
+        Name: "good",
+        Cycles: 5,
+        operator: "=",
+        value: "online",
+    })
 
-    return value
-}
+    trigger.AddState(&State{
+        Name: "warn",
+        Cycles: 5,
+        operator: "=",
+        value: "offline",
+    })
 
-func (c *Consul) getStringOption(name string, service *Service) string {
-    return c.getOptionFor(name, service)
-}
+    trigger.AddState(&State{
+        Name: "crit",
+        Cycles: 5,
+        operator: "=",
+        value: "offline",
+    })
 
-func (c *Consul) getOptionFor(name string, service *Service) string {
-    str, ok := service.Options[name]
-    if !ok {
-        str = c.defaults[name]
-    }
-    return str
+    return trigger
 }
 
 func (c *Consul) checkServices(consulData map[string][]string){
@@ -133,9 +130,9 @@ func (c *Consul) checkServices(consulData map[string][]string){
         }
 
         if found {
-            service.trigger.Good()
+            service.trigger.Touch("online")
         } else {
-            service.trigger.Bad()
+            service.trigger.Touch("offline")
         }
     }
 }

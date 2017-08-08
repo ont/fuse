@@ -1,8 +1,9 @@
 package main
 
 import (
+    "strconv"
     "errors"
-    "github.com/davecgh/go-spew/spew"
+    //"github.com/davecgh/go-spew/spew"
     . "github.com/yhirose/go-peg"
 )
 
@@ -14,6 +15,12 @@ type Option struct {
 type ParseResult struct {
     Alerters map[string]Alerter
     Monitors map[string]Monitor
+}
+
+// helper class for parsing
+type StateValue struct {
+    operator string
+    value    interface{}
 }
 
 func Parse(text string) (*ParseResult, error) {
@@ -42,22 +49,30 @@ func getParser() *Parser {
         SLACK   ← 'slack' '{' OPTION+ '}'
 
         CONSUL  ← 'consul' '{' OPTION+ SERVICE+ '}'
-        SERVICE ← 'service' STRING ('{' OPTION+ '}')?
+        SERVICE ← 'service' STRING TRIGGER?
+
+        TRIGGER     ← STATE+
+        STATE       ← FNAME '(' STATE_VALUE ',' INT ('cycles' / 'cycle') ')'
+        STATE_VALUE ← STRING / (COMPARATOR FLOAT)
+        COMPARATOR  ← < '<=' / '>=' / '<' / '>' / '=' >
 
         INFLUX   ← 'influx' '{' TEMPLATE+ '}'
-        TEMPLATE ← 'template' FNAME '(' (ARG ',')? ARG ')' '{' BODY '}'
+        TEMPLATE ← 'template' FNAME '(' (ARG ',')* ARG ')' '{' BODY '}'
 
 
         # Basic items
         OPTION  ←  KEY '=' STRING
         STRING  ←  '"' < (!'"' .)+ > '"'
 
-        FNAME   ←  < (!'(' .)+ >
+        FNAME   ←  < (![ \n(] .)+ >
         ARG     ←  < (![,)] .)+ >  # any chars except ',' or ')'
-        BODY    ←  < (![}] .)+ >
+        BODY    ←  < (!'}' .)+ >
 
         KEY     ←  < (![ =] .)+ >
         VALUE   ←  < (![ \n] .)+ >
+
+        INT     ←  < [0-9]+ >
+        FLOAT   ←  < ('-' / '+')? INT ('.' INT)? >
 
         %whitespace  ←  [ \t\n]*
     `)
@@ -105,14 +120,63 @@ func getParser() *Parser {
 
     g["SERVICE"].Action = func(v *Values, d Any) (Any, error) {
         //spew.Dump("SERVICE", v)
-        name := v.ToStr(0)
-        options := parseOptions(v)
+        service := &Service{
+            Name: v.ToStr(0),
+        }
+        if v.Len() > 1 {
+            service.trigger, _ = v.Vs[1].(*Trigger)
+        }
+        return service, nil
+    }
 
-        return &Service{
-            Name: name,
-            Options: options,
+    g["TRIGGER"].Action = func(v *Values, d Any) (Any, error) {
+        t := NewTrigger(nil)
+
+        for _, any := range v.Vs {
+            if state, ok := any.(*State); ok {
+                t.AddState(state)
+            }
+        }
+
+        return t, nil
+    }
+
+    g["STATE"].Action = func(v *Values, d Any) (Any, error) {
+        //spew.Dump("STATE", v)
+        state_value, _ := v.Vs[1].(*StateValue)
+        return &State{
+            Name: v.ToStr(0),
+            operator: state_value.operator,
+            value: state_value.value,
+            Cycles: v.ToInt(2),
         }, nil
     }
+
+    g["STATE_VALUE"].Action = func(v *Values, d Any) (Any, error) {
+        //spew.Dump("STATE_VALUE", v)
+        if v.Len() == 1 {
+
+            //spew.Dump("string path")
+            return &StateValue{
+                operator: "=",
+                value: v.ToStr(0),
+            }, nil
+
+        } else {
+            float, _ := v.Vs[1].(float32)
+
+            return &StateValue{
+                operator: v.ToStr(0),
+                value: float,
+            }, nil
+        }
+    }
+
+    g["COMPARATOR"].Action = func(v *Values, d Any) (Any, error) {
+        //spew.Dump("COMPARATOR", v.Token())
+        return v.Token(), nil
+    }
+
 
     g["OPTION"].Action = func(v *Values, d Any) (Any, error) {
         return &Option{
@@ -136,9 +200,25 @@ func getParser() *Parser {
     }
 
     g["FNAME"].Action = func(v *Values, d Any) (Any, error) {
-        spew.Dump("FNAME", v.Token())
+        //spew.Dump("FNAME", v.Token())
         return v.Token(), nil
     }
+
+    g["BODY"].Action = func(v *Values, d Any) (Any, error) {
+        //spew.Dump("BODY", v.Token())
+        return v.Token(), nil
+    }
+
+    g["FLOAT"].Action = func(v *Values, d Any) (Any, error) {
+        val64, _ := strconv.ParseFloat(v.Token(), 32)
+        return float32(val64), nil
+    }
+
+    g["INT"].Action = func(v *Values, d Any) (Any, error) {
+        //spew.Dump("INT", v.Token())
+        return strconv.Atoi(v.Token())
+    }
+
     return parser
 }
 

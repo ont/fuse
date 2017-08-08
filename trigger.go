@@ -17,7 +17,7 @@ type State struct {
     Name        string       // name of state
 
     counter     int          // count of successfull consecutive Touch'es
-    counterMax  int          // if counter > counterMax then state considered to be active
+    Cycles      int          // if counter > Cycles then state considered to be active
     value       interface{}  // value to compare to in Touch
     operator    string       // type of comparision operation (it is always "=" for strings)
     err         bool         // set to true after comparision error in Touch
@@ -74,7 +74,7 @@ func (s *State) Reset() {
 }
 
 func (s *State) IsActive() bool {
-    return s.counter >= s.counterMax
+    return s.counter >= s.Cycles
 }
 
 func (s *State) test(value interface{}) bool {

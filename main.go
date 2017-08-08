@@ -12,8 +12,8 @@ import (
 func main() {
     // load config
     if len(os.Args) == 1 {
-        fmt.Fprintln(os.Stderr, "error: no config specified")
         fmt.Fprintln(os.Stderr, "usage: fuse [config]")
+        fmt.Fprintln(os.Stderr, "error: no config specified")
         os.Exit(1)
     }
     bytes, err := ioutil.ReadFile(os.Args[1])
