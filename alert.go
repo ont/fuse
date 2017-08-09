@@ -1,15 +1,15 @@
 package main
 
-import "fmt"
+import "log"
 
 type Notifer struct {
     Alerters map[string]Alerter
 }
 
 type Alerter interface {
-    Good(name string, msg string) error
-    Warn(name string, msg string) error
-    Crit(name string, msg string) error
+    Good(title string, msg string, details map[string]string) error
+    Warn(title string, msg string, details map[string]string) error
+    Crit(title string, msg string, details map[string]string) error
 }
 
 func NewNotifer() *Notifer {
@@ -22,34 +22,34 @@ func (n *Notifer) AddAlerter(channel string, alerter Alerter){
     n.Alerters[channel] = alerter
 }
 
-func (n *Notifer) Good(channels interface{}, name string, msg string) error {
+func (n *Notifer) Good(channels interface{}, title string, msg string, details map[string]string) error {
     return unpackChannels(channels, func(channel string) error {
-        fmt.Println("[i] alert: send Good to", channel)
-        err := n.Alerters[channel].Good(name, msg)
+        log.Printf("[i] alert: send Good to '%s'", channel)
+        err := n.Alerters[channel].Good(title, msg, details)
         if err != nil {
-            fmt.Println("[!] alert: error during sending -", err)
+            log.Println("[!] alert: error during sending -", err)
         }
         return err
     })
 }
 
-func (n *Notifer) Warn(channels interface{}, name string, msg string) error {
+func (n *Notifer) Warn(channels interface{}, title string, msg string, details map[string]string) error {
     return unpackChannels(channels, func(channel string) error {
-        fmt.Println("[i] alert: send Warn to", channel)
-        err := n.Alerters[channel].Warn(name, msg)
+        log.Println("[i] alert: send Warn to", channel)
+        err := n.Alerters[channel].Warn(title, msg, details)
         if err != nil {
-            fmt.Println("[!] alert: error during sending -", err)
+            log.Println("[!] alert: error during sending -", err)
         }
         return err
     })
 }
 
-func (n *Notifer) Crit(channels interface{}, name string, msg string) error {
+func (n *Notifer) Crit(channels interface{}, title string, msg string, details map[string]string) error {
     return unpackChannels(channels, func(channel string) error {
-        fmt.Println("[i] alert: send Crit to", channel)
-        err := n.Alerters[channel].Crit(name, msg)
+        log.Println("[i] alert: send Crit to", channel)
+        err := n.Alerters[channel].Crit(title, msg, details)
         if err != nil {
-            fmt.Println("[!] alert: error during sending -", err)
+            log.Println("[!] alert: error during sending -", err)
         }
         return err
     })

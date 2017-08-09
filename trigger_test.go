@@ -5,12 +5,12 @@ import "testing"
 func TestStateMatrixEq(t *testing.T) {
     matrix := map[interface{}]map[interface{}]bool{
         "123"        : {"123": true , "12": false, 123: false},
-        float32(123) : {"123": false, "12": false, 123: true, float32(123.0): true},
+        float64(123) : {"123": false, "12": false, 123: true, float64(123.0): true},
     }
     for svalue, tests := range matrix {
         for tvalue, result := range tests {
             s := State{
-                counterMax: 1,
+                Cycles: 1,
                 value: svalue,
             }
             s.Touch(tvalue)
@@ -23,13 +23,13 @@ func TestStateMatrixEq(t *testing.T) {
 
 func TestStateMatrixLt(t *testing.T) {
     matrix := map[interface{}]map[interface{}]bool{
-        float32(123) : {"123": false, 122: true, 124: false, float32(122.0): true, float32(124.0): false},
-        float32(0) : {"123": false, 122: false, 124: false, float32(122.0): false, float32(124.0): false},
+        float64(123) : {"123": false, 122: true, 124: false, float64(122.0): true, float64(124.0): false},
+        float64(0) : {"123": false, 122: false, 124: false, float64(122.0): false, float64(124.0): false},
     }
     for svalue, tests := range matrix {
         for tvalue, result := range tests {
             s := State{
-                counterMax: 1,
+                Cycles: 1,
                 value: svalue,
                 operator: "<",
             }
@@ -43,13 +43,13 @@ func TestStateMatrixLt(t *testing.T) {
 
 func TestStateMatrixGt(t *testing.T) {
     matrix := map[interface{}]map[interface{}]bool{
-        float32(123) : {"123": false, 122: false, 124: true, float32(122.0): false, float32(124.0): true},
-        float32(0) : {"123": false, 122: true, 124: true, float32(122.0): true, float32(124.0): true},
+        float64(123) : {"123": false, 122: false, 124: true, float64(122.0): false, float64(124.0): true},
+        float64(0) : {"123": false, 122: true, 124: true, float64(122.0): true, float64(124.0): true},
     }
     for svalue, tests := range matrix {
         for tvalue, result := range tests {
             s := State{
-                counterMax: 1,
+                Cycles: 1,
                 value: svalue,
                 operator: ">",
             }
@@ -63,13 +63,13 @@ func TestStateMatrixGt(t *testing.T) {
 
 func TestStateMatrixLte(t *testing.T) {
     matrix := map[interface{}]map[interface{}]bool{
-        float32(123) : {"123": false, 122: true, 124: false, float32(122.0): true, float32(124.0): false, 123: true, float32(123): true},
-        float32(0) : {"123": false, 122: false, 124: false, float32(122.0): false, float32(124.0): false, 0: true, float32(0): true},
+        float64(123) : {"123": false, 122: true, 124: false, float64(122.0): true, float64(124.0): false, 123: true, float64(123): true},
+        float64(0) : {"123": false, 122: false, 124: false, float64(122.0): false, float64(124.0): false, 0: true, float64(0): true},
     }
     for svalue, tests := range matrix {
         for tvalue, result := range tests {
             s := State{
-                counterMax: 1,
+                Cycles: 1,
                 value: svalue,
                 operator: "<=",
             }
@@ -83,13 +83,13 @@ func TestStateMatrixLte(t *testing.T) {
 
 func TestStateMatrixGte(t *testing.T) {
     matrix := map[interface{}]map[interface{}]bool{
-        float32(123) : {"123": false, 122: false, 124: true, float32(122.0): false, float32(124.0): true, 123: true, float32(123): true},
-        float32(0) : {"123": false, 122: true, 124: true, float32(122.0): true, float32(124.0): true, 0: true, float32(0): true},
+        float64(123) : {"123": false, 122: false, 124: true, float64(122.0): false, float64(124.0): true, 123: true, float64(123): true},
+        float64(0) : {"123": false, 122: true, 124: true, float64(122.0): true, float64(124.0): true, 0: true, float64(0): true},
     }
     for svalue, tests := range matrix {
         for tvalue, result := range tests {
             s := State{
-                counterMax: 1,
+                Cycles: 1,
                 value: svalue,
                 operator: ">=",
             }
@@ -103,8 +103,8 @@ func TestStateMatrixGte(t *testing.T) {
 
 func TestStateCounter(t *testing.T) {
     s := State{
-        counterMax: 3,
-        value: float32(123),
+        Cycles: 3,
+        value: float64(123),
         operator: "<",
     }
     s.Touch(0)

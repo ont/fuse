@@ -1,7 +1,9 @@
 package main
 
-import "fmt"
-import "github.com/nlopes/slack"
+import (
+    "fmt"
+    "github.com/nlopes/slack"
+)
 
 var slackApi *slack.Client
 
@@ -26,74 +28,67 @@ func NewSlackClient(channel string, token string, icon_url string) *SlackClient 
     }
 }
 
-func (s *SlackClient) Good(name string, msg string) error {
+func (s *SlackClient) Good(title string, msg string, details map[string]string) error {
     attachment := slack.Attachment{
-        Title: fmt.Sprintf("Service \"%s\"", name),
-        Text: msg,
-        Fields: []slack.AttachmentField{
-            slack.AttachmentField{
-                Title: "Service",
-                Value: name,
-                Short: true,
-            },
-            slack.AttachmentField{
-                Title: "State",
-                Value: "GOOD",
-                Short: true,
-            },
-        },
+        //Title: title,
+        //Text: msg,
+        Fields: s.makeFields(details),
         Color: "good",
     }
     s.params.Attachments = []slack.Attachment{attachment}
 
-    _, _, err := s.api.PostMessage(s.channel, "", *s.params)
+    _, _, err := s.api.PostMessage(
+        s.channel,
+        fmt.Sprintf("*%s* \n %s", title, msg),
+        *s.params,
+    )
     return err
 }
 
-func (s *SlackClient) Warn(name string, msg string) error {
+func (s *SlackClient) Warn(title string, msg string, details map[string]string) error {
     attachment := slack.Attachment{
-        Title: fmt.Sprintf("Service \"%s\"", name),
-        Text: msg,
-        Fields: []slack.AttachmentField{
-            slack.AttachmentField{
-                Title: "Service",
-                Value: name,
-                Short: true,
-            },
-            slack.AttachmentField{
-                Title: "State",
-                Value: "WARN",
-                Short: true,
-            },
-        },
+        Fields: s.makeFields(details),
         Color: "warning",
     }
     s.params.Attachments = []slack.Attachment{attachment}
 
-    _, _, err := s.api.PostMessage(s.channel, "", *s.params)
+    _, _, err := s.api.PostMessage(
+        s.channel,
+        fmt.Sprintf("*%s* \n %s", title, msg),
+        *s.params,
+    )
     return err
 }
 
-func (s *SlackClient) Crit(name string, msg string) error {
+func (s *SlackClient) Crit(title string, msg string, details map[string]string) error {
     attachment := slack.Attachment{
-        Title: fmt.Sprintf("Service \"%s\"", name),
-        Text: msg,
-        Fields: []slack.AttachmentField{
-            slack.AttachmentField{
-                Title: "Service",
-                Value: name,
-                Short: true,
-            },
-            slack.AttachmentField{
-                Title: "State",
-                Value: "CRITICAL",
-                Short: true,
-            },
-        },
+        Fields: s.makeFields(details),
         Color: "danger",
     }
     s.params.Attachments = []slack.Attachment{attachment}
 
-    _, _, err := s.api.PostMessage(s.channel, "", *s.params)
+    _, _, err := s.api.PostMessage(
+        s.channel,
+        fmt.Sprintf("*%s* \n %s", title, msg),
+        *s.params,
+    )
     return err
+}
+
+func (s *SlackClient) makeFields(details map[string]string) []slack.AttachmentField {
+    if details == nil {
+        return nil
+    }
+
+    fields := make([]slack.AttachmentField, 0, len(details))
+
+    for name, value := range details {
+        fields = append(fields, slack.AttachmentField{
+            Title: name,
+            Value: value,
+            Short: true,
+        })
+    }
+
+    return fields
 }

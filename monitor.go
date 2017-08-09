@@ -1,5 +1,6 @@
 package main
 
+import "log"
 import "sync"
 
 type Fuse struct {
@@ -25,10 +26,11 @@ func (f *Fuse) RunWith(notifer *Notifer) {
 
     wg.Add(len(f.Monitors))
     for _, monitor := range f.Monitors {
-        go func() {
-            monitor.RunWith(notifer)
+        go func(monitor Monitor) {
+            log.Println("Starting gorutine for", monitor)
             defer wg.Done()
-        }()
+            monitor.RunWith(notifer)
+        }(monitor)
     }
     wg.Wait()
 }

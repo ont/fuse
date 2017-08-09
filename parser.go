@@ -48,24 +48,27 @@ func getParser() *Parser {
 
         SLACK   ← 'slack' '{' OPTION+ '}'
 
+        # Consul
         CONSUL  ← 'consul' '{' OPTION+ SERVICE+ '}'
         SERVICE ← 'service' STRING TRIGGER?
 
+        # Influx
+        INFLUX   ← 'influx' '{' OPTION+ TEMPLATE+ 'checks' '{' CHECK+ '}' '}'
+        TEMPLATE ← 'template' FNAME '(' (ARG ',')* ARG ')' '{' BODY '}'
+        CHECK    ← FNAME '(' (STRING ',')* STRING ')' TRIGGER
+
+        # Trigger
         TRIGGER     ← STATE+
         STATE       ← FNAME '(' STATE_VALUE ',' INT ('cycles' / 'cycle') ')'
         STATE_VALUE ← STRING / (COMPARATOR FLOAT)
         COMPARATOR  ← < '<=' / '>=' / '<' / '>' / '=' >
-
-        INFLUX   ← 'influx' '{' TEMPLATE+ '}'
-        TEMPLATE ← 'template' FNAME '(' (ARG ',')* ARG ')' '{' BODY '}'
-
 
         # Basic items
         OPTION  ←  KEY '=' STRING
         STRING  ←  '"' < (!'"' .)+ > '"'
 
         FNAME   ←  < (![ \n(] .)+ >
-        ARG     ←  < (![,)] .)+ >  # any chars except ',' or ')'
+        ARG     ←  < (![ ,)] .)+ >  # any chars except space, ',' or ')'
         BODY    ←  < (!'}' .)+ >
 
         KEY     ←  < (![ =] .)+ >
@@ -163,7 +166,7 @@ func getParser() *Parser {
             }, nil
 
         } else {
-            float, _ := v.Vs[1].(float32)
+            float, _ := v.Vs[1].(float64)
 
             return &StateValue{
                 operator: v.ToStr(0),
@@ -177,6 +180,54 @@ func getParser() *Parser {
         return v.Token(), nil
     }
 
+    g["INFLUX"].Action = func(v *Values, d Any) (Any, error) {
+        options := parseOptions(v)
+        influx := NewInflux(options)
+
+        for _, value := range v.Vs {
+            if template, ok := value.(*Template); ok {
+                influx.AddTemplate(template)
+            } else if check, ok := value.(*Check); ok {
+                influx.AddCheck(check)
+            }
+        }
+
+        result.Monitors["influx"] = influx
+        return nil, nil
+    }
+
+    g["TEMPLATE"].Action = func(v *Values, d Any) (Any, error) {
+        args := make([]string, 0, v.Len()-2)
+        for i := 1; i < v.Len()-1; i++ {
+            args = append(args, v.ToStr(i))
+        }
+
+        return &Template{
+            Name: v.ToStr(0),
+            body: v.ToStr(v.Len()-1),
+            args: args,
+        }, nil
+    }
+
+    g["CHECK"].Action = func(v *Values, d Any) (Any, error) {
+        values := make([]string, 0, v.Len()-2)
+        for i := 1; i < v.Len()-1; i++ {
+            values = append(values, v.ToStr(i))
+        }
+
+        trigger, _ := v.Vs[v.Len()-1].(*Trigger)
+
+        return &Check{
+            name: v.ToStr(0),
+            values: values,
+            trigger: trigger,
+        }, nil
+    }
+
+    g["ARG"].Action = func(v *Values, d Any) (Any, error) {
+        //spew.Dump("KEY", v.Token())
+        return v.Token(), nil
+    }
 
     g["OPTION"].Action = func(v *Values, d Any) (Any, error) {
         return &Option{
@@ -210,8 +261,7 @@ func getParser() *Parser {
     }
 
     g["FLOAT"].Action = func(v *Values, d Any) (Any, error) {
-        val64, _ := strconv.ParseFloat(v.Token(), 32)
-        return float32(val64), nil
+        return strconv.ParseFloat(v.Token(), 64)
     }
 
     g["INT"].Action = func(v *Values, d Any) (Any, error) {

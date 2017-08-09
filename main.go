@@ -3,6 +3,7 @@ package main
 import (
     "os"
     "fmt"
+    //"log"
     "io/ioutil"
     //"strconv"
     //"github.com/davecgh/go-spew/spew"

@@ -1,15 +1,21 @@
 package main
 
-import "fmt"
-import "time"
-import "strconv"
-import "github.com/hashicorp/consul/api"
+import (
+    "log"
+    "fmt"
+    "time"
+    "strconv"
+    "github.com/hashicorp/consul/api"
+)
 //import "github.com/davecgh/go-spew/spew"
 
 type Consul struct {
     Services  []*Service
-    defaults  map[string]string
-    catalog   *api.Catalog
+
+    catalog   *api.Catalog       // consul api client
+    notifer   *Notifer           // notifer to send alters to
+
+    options   map[string]string  // TODO: replace with explicit declarations (remove parsing actions from Consul)
 }
 
 type Service struct {
@@ -17,19 +23,19 @@ type Service struct {
     trigger  *Trigger
 }
 
-func NewConsul(services []*Service, defaults map[string]string) *Consul {
-    defaultsFull := map[string]string{
+func NewConsul(services []*Service, options map[string]string) *Consul {
+    optionsFull := map[string]string{
         "url" : "localhost:8500",
         "interval" : "5",
         "alert"    : "",
     }
-    for k,v := range defaults {
-        defaultsFull[k] = v
+    for k,v := range options {
+        optionsFull[k] = v
     }
 
     config := api.DefaultConfig()
 
-    config.Address = defaultsFull["url"]
+    config.Address = optionsFull["url"]
 
     client, err := api.NewClient(config)
 
@@ -43,27 +49,27 @@ func NewConsul(services []*Service, defaults map[string]string) *Consul {
     return &Consul{
         catalog: catalog,
         Services: services,
-        defaults: defaultsFull,
+        options: optionsFull,
     }
 }
 
 func (c *Consul) RunWith(notifer *Notifer){
-    interval, err := strconv.Atoi(c.defaults["interval"])
+    interval, err := strconv.Atoi(c.options["interval"])
 
-    // TODO: better exit
     if err != nil {
-        panic(err)
+        log.Fatalln("[e] consul: wrong 'interval' value: ", c.options["interval"])
     }
 
-    c.addTriggers(notifer, interval)
+    c.notifer = notifer
+    c.addTriggers(interval)
 
-    fmt.Println("[i] consul: running...")
     for {
+        log.Println("[i] consul: check loop...")
         services, _, err := c.catalog.Services(nil)
 
         // TODO: handle multiple error (write to log/slack)
         if err != nil {
-            fmt.Println("[e] consul: error during check cycle")
+            log.Println("[e] consul: error during check cycle", err)
         } else {
             c.checkServices(services)
         }
@@ -72,21 +78,40 @@ func (c *Consul) RunWith(notifer *Notifer){
     }
 }
 
-func (c *Consul) addTriggers(notifer *Notifer, interval int){
-    channel := c.defaults["alert"]
+func (c *Consul) addTriggers(interval int){
+    channel := c.options["alert"]
 
     for _, service := range c.Services {
         if service.trigger == nil {
             service.trigger = c.defaultTrigger()
         }
 
-        name := service.Name
-        service.trigger.callback = func(state *State) error {
+        _name := service.Name
+        service.trigger.callback = func(state *State, lastValue interface{}) error {
             var err error
+            details := map[string]string{
+                "value": fmt.Sprintf("%v", lastValue),
+            }
+
             switch state.Name {
-                case "good": err = notifer.Good(channel, name, fmt.Sprintf("Service is online more than %d sec.", interval * state.Cycles))
-                case "warn": err = notifer.Warn(channel, name, fmt.Sprintf("Service is offline more than %d sec.", interval * state.Cycles))
-                case "crit": err = notifer.Crit(channel, name, fmt.Sprintf("Service is offline more than %d sec.", interval * state.Cycles))
+                case "good": err = c.notifer.Good(
+                    channel,
+                    "SERVICE: " + _name,
+                    fmt.Sprintf("Service \"%s\" *is online* more than %d sec.", _name, interval * state.Cycles),
+                    details,
+                )
+                case "warn": err = c.notifer.Warn(
+                    channel,
+                    "SERVICE: " + _name,
+                    fmt.Sprintf("*WARN:* service \"%s\" *is offline* more than %d sec.", _name, interval * state.Cycles),
+                    details,
+                )
+                case "crit": err = c.notifer.Crit(
+                    channel,
+                    "SERVICE: " + _name,
+                    fmt.Sprintf("*CRITICAL:* service \"%s\" *is offline* more than %d sec.", _name, interval * state.Cycles),
+                    details,
+                )
             }
             return err
         }

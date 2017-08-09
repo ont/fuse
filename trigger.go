@@ -10,20 +10,20 @@ type Trigger struct {
     state  *State          // current active state
     states []*State        // set of states to check
 
-    callback func(state *State) error  // callback to call after changing the state
+    callback func(state *State, lastValue interface{}) error  // callback to call after changing the state
 }
 
 type State struct {
     Name        string       // name of state
+    Cycles      int          // if counter > Cycles then state considered to be active
 
     counter     int          // count of successfull consecutive Touch'es
-    Cycles      int          // if counter > Cycles then state considered to be active
     value       interface{}  // value to compare to in Touch
     operator    string       // type of comparision operation (it is always "=" for strings)
     err         bool         // set to true after comparision error in Touch
 }
 
-func NewTrigger(callback func(*State)error) *Trigger {
+func NewTrigger(callback func(*State, interface{})error) *Trigger {
     return &Trigger{
         state: nil,
         states: make([]*State, 0),
@@ -33,6 +33,11 @@ func NewTrigger(callback func(*State)error) *Trigger {
 
 func (t *Trigger) AddState(state *State) {
     t.states = append(t.states, state)
+
+    // set first state as active
+    if len(t.states) == 1 {
+        t.state = state
+    }
 }
 
 func (t *Trigger) Touch(value interface{}) {
@@ -57,7 +62,7 @@ func (t *Trigger) Touch(value interface{}) {
 
     if t.state != newState {
         t.state = newState
-        t.callback(newState)
+        t.callback(newState, value)
     }
 }
 
@@ -115,12 +120,12 @@ func (s *State) testInt(value interface{}) (bool, bool) {
         return false, false
     }
 
-    return s.testFloat(float32(tmp))
+    return s.testFloat(float64(tmp))
 }
 
 func (s *State) testFloat(value interface{}) (bool, bool) {
-    tmp, ok1 := value.(float32)
-    fvalue, ok2 := s.value.(float32)
+    tmp, ok1 := value.(float64)
+    fvalue, ok2 := s.value.(float64)
 
     if !ok1 || !ok2 {
         return false, false
