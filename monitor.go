@@ -1,6 +1,6 @@
 package main
 
-import "log"
+import log "github.com/sirupsen/logrus"
 import "sync"
 
 type Fuse struct {
@@ -8,6 +8,7 @@ type Fuse struct {
 }
 
 type Monitor interface {
+    GetName() string
     RunWith(notifer *Notifer)
 }
 
@@ -27,7 +28,7 @@ func (f *Fuse) RunWith(notifer *Notifer) {
     wg.Add(len(f.Monitors))
     for _, monitor := range f.Monitors {
         go func(monitor Monitor) {
-            log.Println("Starting gorutine for", monitor)
+            log.WithFields(log.Fields{"name": monitor.GetName()}).Info("monitor: starting gorutine")
             defer wg.Done()
             monitor.RunWith(notifer)
         }(monitor)

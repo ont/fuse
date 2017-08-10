@@ -1,6 +1,6 @@
 package main
 
-import "log"
+import log "github.com/sirupsen/logrus"
 
 type Notifer struct {
     Alerters map[string]Alerter
@@ -24,10 +24,11 @@ func (n *Notifer) AddAlerter(channel string, alerter Alerter){
 
 func (n *Notifer) Good(channels interface{}, title string, msg string, details map[string]string) error {
     return unpackChannels(channels, func(channel string) error {
-        log.Printf("[i] alert: send Good to '%s'", channel)
+        log.WithFields(log.Fields{"channel": channel}).Info("alert: send Good message")
+        log.WithFields(log.Fields{"title": title, "msg": msg, "details": details}).Debug("alert: message")
         err := n.Alerters[channel].Good(title, msg, details)
         if err != nil {
-            log.Println("[!] alert: error during sending -", err)
+            log.Error("alert: error during sending -", err)
         }
         return err
     })
@@ -35,10 +36,11 @@ func (n *Notifer) Good(channels interface{}, title string, msg string, details m
 
 func (n *Notifer) Warn(channels interface{}, title string, msg string, details map[string]string) error {
     return unpackChannels(channels, func(channel string) error {
-        log.Println("[i] alert: send Warn to", channel)
+        log.WithFields(log.Fields{"channel": channel}).Info("alert: send Warn message")
+        log.WithFields(log.Fields{"title": title, "msg": msg, "details": details}).Debug("alert: message")
         err := n.Alerters[channel].Warn(title, msg, details)
         if err != nil {
-            log.Println("[!] alert: error during sending -", err)
+            log.Error("alert: error during sending -", err)
         }
         return err
     })
@@ -46,10 +48,11 @@ func (n *Notifer) Warn(channels interface{}, title string, msg string, details m
 
 func (n *Notifer) Crit(channels interface{}, title string, msg string, details map[string]string) error {
     return unpackChannels(channels, func(channel string) error {
-        log.Println("[i] alert: send Crit to", channel)
+        log.WithFields(log.Fields{"channel": channel}).Info("alert: send Crit message")
+        log.WithFields(log.Fields{"title": title, "msg": msg, "details": details}).Debug("alert: message")
         err := n.Alerters[channel].Crit(title, msg, details)
         if err != nil {
-            log.Println("[!] alert: error during sending -", err)
+            log.Error("alert: error during sending -", err)
         }
         return err
     })

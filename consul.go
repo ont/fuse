@@ -1,11 +1,11 @@
 package main
 
 import (
-    "log"
     "fmt"
     "time"
     "strconv"
     "github.com/hashicorp/consul/api"
+    log "github.com/sirupsen/logrus"
 )
 //import "github.com/davecgh/go-spew/spew"
 
@@ -53,23 +53,27 @@ func NewConsul(services []*Service, options map[string]string) *Consul {
     }
 }
 
+func (c *Consul) GetName() string {
+    return "consul"
+}
+
 func (c *Consul) RunWith(notifer *Notifer){
     interval, err := strconv.Atoi(c.options["interval"])
 
     if err != nil {
-        log.Fatalln("[e] consul: wrong 'interval' value: ", c.options["interval"])
+        log.WithFields(log.Fields{"value" : c.options["interval"]}).Fatal("consul: wrong 'interval' value")
     }
 
     c.notifer = notifer
     c.addTriggers(interval)
 
     for {
-        log.Println("[i] consul: check loop...")
+        log.Info("consul: check loop...")
         services, _, err := c.catalog.Services(nil)
 
         // TODO: handle multiple error (write to log/slack)
         if err != nil {
-            log.Println("[e] consul: error during check cycle", err)
+            log.Error("consul: error during check cycle", err)
         } else {
             c.checkServices(services)
         }

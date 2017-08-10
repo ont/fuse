@@ -1,9 +1,7 @@
 package main
 
 import (
-    "os"
-    "fmt"
-    "github.com/davecgh/go-spew/spew"
+    log "github.com/sirupsen/logrus"
 )
 
 type Trigger struct {
@@ -62,6 +60,7 @@ func (t *Trigger) Touch(value interface{}) {
 
     if t.state != newState {
         t.state = newState
+        log.WithFields(log.Fields{"state" : newState.Name, "counter" : newState.counter}).Debug("trigger: activating new state")
         t.callback(newState, value)
     }
 }
@@ -69,13 +68,16 @@ func (t *Trigger) Touch(value interface{}) {
 func (s *State) Touch(value interface{}) {
     if s.test(value) {
         s.counter += 1
+        log.WithFields(log.Fields{"state" : s.Name, "counter" : s.counter}).Debug("trigger: test successfull, counter++")
     } else {
         s.counter = 0
+        //log.WithFields(log.Fields{"state" : s.Name, "counter" : s.counter}).Debug("trigger: test failed, reset counter")
     }
 }
 
 func (s *State) Reset() {
     s.counter = 0
+    //log.WithFields(log.Fields{"state" : s.Name, "counter" : s.counter}).Debug("trigger: resetting counter by request")
 }
 
 func (s *State) IsActive() bool {
@@ -94,8 +96,7 @@ func (s *State) test(value interface{}) bool {
         s.err = true
 
         // TODO: doesn't clutter output during tests
-        fmt.Fprintln(os.Stderr, "[W] wrong comparision:")
-        spew.Fdump(os.Stderr, value, s)
+        log.WithFields(log.Fields{"state" : s.Name, "value" : value, "state_value" : s.value}).Warn("trigger: wrong comparision")
     }
 
     return false
@@ -109,6 +110,7 @@ func (s *State) testString(value interface{}) (bool, bool) {
         return false, false
     }
 
+    log.WithFields(log.Fields{"state" : s.Name, "value" : value, "state_value" : s.value}).Debug("trigger: comparing as strings")
     return svalue == tmp, true
 }
 
@@ -120,6 +122,7 @@ func (s *State) testInt(value interface{}) (bool, bool) {
         return false, false
     }
 
+    log.WithFields(log.Fields{"state" : s.Name, "value" : value}).Debug("trigger: comparing int as float")
     return s.testFloat(float64(tmp))
 }
 
@@ -130,6 +133,8 @@ func (s *State) testFloat(value interface{}) (bool, bool) {
     if !ok1 || !ok2 {
         return false, false
     }
+
+    log.WithFields(log.Fields{"state" : s.Name, "value" : value, "state_value" : s.value, "operator": s.operator}).Debug("trigger: comparing as floats")
 
     switch s.operator {
         case "=":  return tmp == fvalue, true

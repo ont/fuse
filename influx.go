@@ -2,13 +2,13 @@ package main
 
 import (
     "fmt"
-    "log"
     "time"
     "strconv"
     "strings"
     "encoding/json"
     //"github.com/davecgh/go-spew/spew"
     "github.com/influxdata/influxdb/client/v2"
+    log "github.com/sirupsen/logrus"
 )
 
 type Influx struct {
@@ -47,7 +47,7 @@ func NewInflux(options map[string]string) *Influx {
         Addr: optionsFull["url"],
     })
     if err != nil {
-        log.Fatalln(err)
+        log.Fatalln("influx: ", err)
     }
 
     return &Influx{
@@ -99,42 +99,45 @@ func (i *Influx) query(cmd string) (interface{}, error) {
     return nil, fmt.Errorf("result is not nor json.Number nor string")
 }
 
+func (i *Influx) GetName() string {
+    return "influx"
+}
+
 func (i *Influx) RunWith(notifer *Notifer) {
     interval, err := strconv.Atoi(i.options["interval"])
 
     if err != nil {
-        log.Fatalf("[e] influx: wrong 'interval' value '%s'\n", i.options["interval"])
+        log.WithFields(log.Fields{"value" : i.options["interval"]}).Fatal("influx: wrong 'interval' value")
     }
 
     i.notifer = notifer
     i.initTriggers(interval)
 
     for {
-        log.Println("[i] influx: check loop...")
+        log.Info("influx: check loop...")
 
         for _, check := range i.checks {
-            log.Println("[i] influx: checking", check.name)
+
+            log.WithFields(log.Fields{"check" : check.name}).Debug("influx: next check")
 
             sql := i.getSqlForCheck(check)
-            log.Println("[i] influx: sql =", strings.TrimSpace(sql))
+            log.WithFields(log.Fields{"sql" : strings.TrimSpace(sql)}).Debug("influx: executing sql")
 
             value, err := i.query(sql)
             if err != nil {
-                log.Fatalln("[w] influx: error during query execution;", err)
+                log.Error("influx: error during query execution:", err)
+                continue
             }
 
-            log.Println("[i] influx: value =", value)
+            log.WithFields(log.Fields{"value" : value}).Debug("influx: sending value to trigger")
 
             if value == nil {
-                log.Println("[i] influx: touching trigger with '0' value instead of 'nil'")
+                log.Debug("influx: touching trigger with '0' value instead of 'nil'")
                 check.trigger.Touch(0)
                 continue
             }
 
             check.trigger.Touch(value)
-
-            log.Println("")
-
         }
         time.Sleep(time.Second * time.Duration(interval))
     }
@@ -195,7 +198,7 @@ func (i *Influx) getDetailsForCheck(check *Check) map[string]string {
 func (i *Influx) getSqlForCheck(check *Check) string {
     tpl, ok := i.templates[check.name]
     if !ok {
-        log.Fatalf("[e] influx: missing template '%s'\n", check.name)
+        log.WithFields(log.Fields{ "module" : "influx" }).Fatalf("influx: missing template '%s'\n", check.name)
     }
 
     return tpl.Format(check.values...)
@@ -203,7 +206,7 @@ func (i *Influx) getSqlForCheck(check *Check) string {
 
 func (t *Template) Format(values ...string) string {
     if len(values) != len(t.args) {
-        log.Fatalln("wrong call of template", t.Name, " - wrong amount of arguments")
+        log.WithFields(log.Fields{ "module" : "influx/template" }).Fatalln("influx: wrong call of template", t.Name, " - wrong amount of arguments")
     }
 
     res := t.body
