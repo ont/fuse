@@ -2,6 +2,7 @@ package main
 
 import (
     "fmt"
+    "sort"
     "github.com/nlopes/slack"
 )
 
@@ -82,10 +83,16 @@ func (s *SlackClient) makeFields(details map[string]string) []slack.AttachmentFi
 
     fields := make([]slack.AttachmentField, 0, len(details))
 
-    for name, value := range details {
+    keys := make([]string, 0, len(details))
+    for key, _ := range details {
+        keys = append(keys, key)
+    }
+    sort.Strings(keys)
+
+    for _, name := range keys {
         fields = append(fields, slack.AttachmentField{
             Title: name,
-            Value: value,
+            Value: details[name],
             Short: true,
         })
     }
