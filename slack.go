@@ -1,7 +1,6 @@
 package main
 
 import (
-    "fmt"
     "sort"
     "github.com/nlopes/slack"
 )
@@ -31,48 +30,43 @@ func NewSlackClient(channel string, token string, icon_url string) *SlackClient 
 
 func (s *SlackClient) Good(title string, msg string, details map[string]string) error {
     attachment := slack.Attachment{
-        //Title: title,
-        //Text: msg,
+        Title: title,
+        Text: msg,
+        MarkdownIn: []string{"text"},
         Fields: s.makeFields(details),
         Color: "good",
     }
     s.params.Attachments = []slack.Attachment{attachment}
 
-    _, _, err := s.api.PostMessage(
-        s.channel,
-        fmt.Sprintf("*%s* \n %s", title, msg),
-        *s.params,
-    )
+    _, _, err := s.api.PostMessage(s.channel, "", *s.params)
     return err
 }
 
 func (s *SlackClient) Warn(title string, msg string, details map[string]string) error {
     attachment := slack.Attachment{
+        Title: title,
+        Text: msg,
+        MarkdownIn: []string{"text"},
         Fields: s.makeFields(details),
         Color: "warning",
     }
     s.params.Attachments = []slack.Attachment{attachment}
 
-    _, _, err := s.api.PostMessage(
-        s.channel,
-        fmt.Sprintf("*%s* \n %s", title, msg),
-        *s.params,
-    )
+    _, _, err := s.api.PostMessage(s.channel, "", *s.params)
     return err
 }
 
 func (s *SlackClient) Crit(title string, msg string, details map[string]string) error {
     attachment := slack.Attachment{
+        Title: title,
+        Text: msg,
+        MarkdownIn: []string{"text"},
         Fields: s.makeFields(details),
         Color: "danger",
     }
     s.params.Attachments = []slack.Attachment{attachment}
 
-    _, _, err := s.api.PostMessage(
-        s.channel,
-        fmt.Sprintf("*%s* \n %s", title, msg),
-        *s.params,
-    )
+    _, _, err := s.api.PostMessage(s.channel, "", *s.params)
     return err
 }
 
