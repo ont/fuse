@@ -153,33 +153,32 @@ func (i *Influx) initTriggers(interval int) {
         _check := check      // catch var for closure
 
         check.trigger.callback = func(state *State, lastValue interface{}) error {
-            var err error
-
             details := i.getDetailsForCheck(_check)
             details["value"] = fmt.Sprintf("%v", lastValue)
 
             sql := i.getSqlForCheck(_check)
 
+            var body string
             switch state.Name {
-                case "good": err = i.notifer.Good(
-                    channel,
-                    fmt.Sprintf("QUERY: %s", _name),
-                    fmt.Sprintf("Query \"%s\" is good more than %d sec. ```%s```", _name, interval * state.Cycles, sql),
-                    details,
-                )
-                case "warn": err = i.notifer.Warn(
-                    channel,
-                    fmt.Sprintf("QUERY: %s", _name),
-                    fmt.Sprintf("*WARN:* query \"%s\" has bad value for more than %d sec. ```%s```", _name, interval * state.Cycles, sql),
-                    details,
-                )
-                case "crit": err = i.notifer.Crit(
-                    channel,
-                    fmt.Sprintf("QUERY: %s", _name),
-                    fmt.Sprintf("*CRITICAL:* query \"%s\" has bad value for more than %d sec. ```%s```", _name, interval * state.Cycles, sql),
-                    details,
-                )
+                case "good":
+                    body = fmt.Sprintf("Query \"%s\" is good more than %d sec. ```%s```", _name, interval * state.Cycles, sql)
+                case "warn":
+                    body = fmt.Sprintf("*WARN:* query \"%s\" has bad value for more than %d sec. ```%s```", _name, interval * state.Cycles, sql)
+                case "crit":
+                    body = fmt.Sprintf("*CRITICAL:* query \"%s\" has bad value for more than %d sec. ```%s```", _name, interval * state.Cycles, sql)
             }
+
+            err := i.notifer.Notify(
+                state.Name,  // notify level
+                channel,
+                Message{
+                    IconUrl: "https://aperogeek.fr/wp-content/uploads/2017/04/influx_logo.png",  // TODO: replace
+                    From: "influx",
+                    Title: fmt.Sprintf("QUERY: %s", _name),
+                    Body: body,
+                    Details: details,
+                },
+            )
             return err
         }
     }

@@ -12,17 +12,18 @@ import (
 
 
 func main() {
-    // load config
+    // check args
     if len(os.Args) == 1 {
         fmt.Fprintln(os.Stderr, "usage: fuse [config]")
         fmt.Fprintln(os.Stderr, "error: no config specified")
         os.Exit(1)
     }
-    bytes, err := ioutil.ReadFile(os.Args[len(os.Args)-1])
-
     if os.Args[1] == "-v" {
         log.SetLevel(log.DebugLevel)
     }
+
+    // load config
+    bytes, err := ioutil.ReadFile(os.Args[len(os.Args)-1])
 
     // parse config
     result, err := Parse(string(bytes))

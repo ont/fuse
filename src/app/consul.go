@@ -93,32 +93,33 @@ func (c *Consul) addTriggers(interval int){
 
         _name := service.Name
         service.trigger.callback = func(state *State, lastValue interface{}) error {
-            var err error
             details := map[string]string{
                 "value": fmt.Sprintf("%v", lastValue),
             }
 
+            var body string
             switch state.Name {
-                case "good": err = c.notifer.Good(
-                    channel,
-                    "SERVICE: " + _name,
-                    fmt.Sprintf("Service \"%s\" *is online* more than %d sec.", _name, interval * state.Cycles),
-                    details,
-                )
-                case "warn": err = c.notifer.Warn(
-                    channel,
-                    "SERVICE: " + _name,
-                    fmt.Sprintf("*WARN:* service \"%s\" *is offline* more than %d sec.", _name, interval * state.Cycles),
-                    details,
-                )
-                case "crit": err = c.notifer.Crit(
-                    channel,
-                    "SERVICE: " + _name,
-                    fmt.Sprintf("*CRITICAL:* service \"%s\" *is offline* more than %d sec.", _name, interval * state.Cycles),
-                    details,
-                )
+                case "good":
+                    body = fmt.Sprintf("Service \"%s\" *is online* more than %d sec.", _name, interval * state.Cycles)
+                case "warn":
+                    body = fmt.Sprintf("*WARN:* service \"%s\" *is offline* more than %d sec.", _name, interval * state.Cycles)
+                case "crit":
+                    body = fmt.Sprintf("*CRITICAL:* service \"%s\" *is offline* more than %d sec.", _name, interval * state.Cycles)
             }
+
+            err := c.notifer.Notify(
+                state.Name,  // notify level
+                channel,
+                Message{
+                    IconUrl: "https://pbs.twimg.com/media/C5SO5KRVcAA6Ag6.png",  // TODO: replace
+                    From: "consul",
+                    Title: fmt.Sprintf("SERVICE: %s", _name),
+                    Body: body,
+                    Details: details,
+                },
+            )
             return err
+
         }
     }
 }

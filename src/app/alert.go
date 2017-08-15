@@ -1,15 +1,29 @@
 package main
 
+import "fmt"
 import log "github.com/sirupsen/logrus"
 
 type Notifer struct {
     Alerters map[string]Alerter
 }
 
+type Message struct {
+    // context info (consul/influx/...)
+    IconUrl  string
+    From     string
+
+    // message
+    Title    string
+    Body     string
+
+    // additional info as field-value pairs
+    Details  map[string]string
+}
+
 type Alerter interface {
-    Good(title string, msg string, details map[string]string) error
-    Warn(title string, msg string, details map[string]string) error
-    Crit(title string, msg string, details map[string]string) error
+    Good(msg Message) error
+    Warn(msg Message) error
+    Crit(msg Message) error
 }
 
 func NewNotifer() *Notifer {
@@ -22,11 +36,28 @@ func (n *Notifer) AddAlerter(channel string, alerter Alerter){
     n.Alerters[channel] = alerter
 }
 
-func (n *Notifer) Good(channels interface{}, title string, msg string, details map[string]string) error {
+func (n *Notifer) AlerterExists(name string) bool {
+    _, ok := n.Alerters[name]
+    return ok
+}
+
+func (n *Notifer) Notify(level string, channels interface{}, msg Message) error {
+    switch level {
+    case "good":
+        return n.Good(channels, msg)
+    case "warn":
+        return n.Warn(channels, msg)
+    case "crit":
+        return n.Crit(channels, msg)
+    }
+    return fmt.Errorf("Wrong notify level \"%s\"", level)
+}
+
+func (n *Notifer) Good(channels interface{}, msg Message) error {
     return unpackChannels(channels, func(channel string) error {
         log.WithFields(log.Fields{"channel": channel}).Info("alert: send Good message")
-        log.WithFields(log.Fields{"title": title, "msg": msg, "details": details}).Debug("alert: message")
-        err := n.Alerters[channel].Good(title, msg, details)
+        log.WithFields(log.Fields{"msg": msg}).Debug("alert: message")
+        err := n.Alerters[channel].Good(msg)
         if err != nil {
             log.Error("alert: error during sending -", err)
         }
@@ -34,11 +65,11 @@ func (n *Notifer) Good(channels interface{}, title string, msg string, details m
     })
 }
 
-func (n *Notifer) Warn(channels interface{}, title string, msg string, details map[string]string) error {
+func (n *Notifer) Warn(channels interface{}, msg Message) error {
     return unpackChannels(channels, func(channel string) error {
         log.WithFields(log.Fields{"channel": channel}).Info("alert: send Warn message")
-        log.WithFields(log.Fields{"title": title, "msg": msg, "details": details}).Debug("alert: message")
-        err := n.Alerters[channel].Warn(title, msg, details)
+        log.WithFields(log.Fields{"msg": msg}).Debug("alert: message")
+        err := n.Alerters[channel].Warn(msg)
         if err != nil {
             log.Error("alert: error during sending -", err)
         }
@@ -46,11 +77,11 @@ func (n *Notifer) Warn(channels interface{}, title string, msg string, details m
     })
 }
 
-func (n *Notifer) Crit(channels interface{}, title string, msg string, details map[string]string) error {
+func (n *Notifer) Crit(channels interface{}, msg Message) error {
     return unpackChannels(channels, func(channel string) error {
         log.WithFields(log.Fields{"channel": channel}).Info("alert: send Crit message")
-        log.WithFields(log.Fields{"title": title, "msg": msg, "details": details}).Debug("alert: message")
-        err := n.Alerters[channel].Crit(title, msg, details)
+        log.WithFields(log.Fields{"msg": msg}).Debug("alert: message")
+        err := n.Alerters[channel].Crit(msg)
         if err != nil {
             log.Error("alert: error during sending -", err)
         }

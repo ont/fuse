@@ -25,6 +25,15 @@ func (f *Fuse) AddMonitor(monitor Monitor){
 func (f *Fuse) RunWith(notifer *Notifer) {
     var wg sync.WaitGroup
 
+    // TODO: send to another alter if slack is not available
+    if notifer.AlerterExists("slack") {
+        notifer.Good("slack", Message{
+            From: "fuse",
+            Title: "Fuse monitor",
+            Body: "The monitor was restarted",
+        })
+    }
+
     wg.Add(len(f.Monitors))
     for _, monitor := range f.Monitors {
         go func(monitor Monitor) {

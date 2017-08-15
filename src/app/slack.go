@@ -1,6 +1,8 @@
 package main
 
 import (
+    "fmt"
+    "time"
     "sort"
     "github.com/nlopes/slack"
 )
@@ -18,6 +20,7 @@ func NewSlackClient(channel string, token string, icon_url string) *SlackClient 
     slackApi := slack.New(token)
 
     params := slack.PostMessageParameters{
+        Username: "fuse",
         IconURL: icon_url,
     }
 
@@ -28,13 +31,15 @@ func NewSlackClient(channel string, token string, icon_url string) *SlackClient 
     }
 }
 
-func (s *SlackClient) Good(title string, msg string, details map[string]string) error {
+func (s *SlackClient) Good(msg Message) error {
     attachment := slack.Attachment{
-        Title: title,
-        Text: msg,
+        Title: msg.Title,
+        Text: msg.Body,
         MarkdownIn: []string{"text"},
-        Fields: s.makeFields(details),
+        Fields: s.makeFields(msg.Details),
         Color: "good",
+        Footer: fmt.Sprintf("%s | %s", msg.From, time.Now().Format("2006-01-02 15:04:05")),
+        FooterIcon: msg.IconUrl,
     }
     s.params.Attachments = []slack.Attachment{attachment}
 
@@ -42,13 +47,16 @@ func (s *SlackClient) Good(title string, msg string, details map[string]string) 
     return err
 }
 
-func (s *SlackClient) Warn(title string, msg string, details map[string]string) error {
+func (s *SlackClient) Warn(msg Message) error {
+    // TODO: refactor code duplication
     attachment := slack.Attachment{
-        Title: title,
-        Text: msg,
+        Title: msg.Title,
+        Text: msg.Body,
         MarkdownIn: []string{"text"},
-        Fields: s.makeFields(details),
+        Fields: s.makeFields(msg.Details),
         Color: "warning",
+        Footer: fmt.Sprintf("%s | %s", msg.From, time.Now().Format("2006-01-02 15:04:05")),
+        FooterIcon: msg.IconUrl,
     }
     s.params.Attachments = []slack.Attachment{attachment}
 
@@ -56,13 +64,16 @@ func (s *SlackClient) Warn(title string, msg string, details map[string]string) 
     return err
 }
 
-func (s *SlackClient) Crit(title string, msg string, details map[string]string) error {
+func (s *SlackClient) Crit(msg Message) error {
+    // TODO: refactor code duplication
     attachment := slack.Attachment{
-        Title: title,
-        Text: msg,
+        Title: msg.Title,
+        Text: msg.Body,
         MarkdownIn: []string{"text"},
-        Fields: s.makeFields(details),
+        Fields: s.makeFields(msg.Details),
         Color: "danger",
+        Footer: fmt.Sprintf("%s | %s", msg.From, time.Now().Format("2006-01-02 15:04:05")),
+        FooterIcon: msg.IconUrl,
     }
     s.params.Attachments = []slack.Attachment{attachment}
 
