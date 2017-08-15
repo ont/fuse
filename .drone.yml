@@ -1,0 +1,19 @@
+# vim: ts=2:sts=2:sw=2:expandtab:smarttab:
+
+pipeline:
+  build:
+    image: golang
+    commands:
+      - export GOPATH=$(pwd)
+      - cd src/app
+      - go get
+      - go build -o fuse
+
+  publish-docker:
+    image: plugins/docker
+    tag:
+      - latest
+      - ${DRONE_TAG}
+    repo: ontrif/fuse
+    when:
+      event: tag
