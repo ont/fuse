@@ -5,17 +5,16 @@ pipeline:
     image: golang
     commands:
       - export GOPATH=$(pwd)
-      - cd src/app
+      - cd src/fuse
       - go get
-      - go build -o fuse
+      - go build
 
   test:
     image: golang
     commands:
       - export GOPATH=$(pwd)
-      - cd src/app
+      - cd src/fuse
       - go test
-      - find .
 
   publish-docker:
     image: plugins/docker

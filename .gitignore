@@ -3,7 +3,8 @@
 *.dll
 *.so
 *.dylib
-fuse
+src/fuse/fuse
+./bin/fuse
 
 # Test binary, build with `go test -c`
 *.test
