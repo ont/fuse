@@ -15,6 +15,7 @@ pipeline:
       - export GOPATH=$(pwd)
       - cd src/app
       - go test
+      - find .
 
   publish-docker:
     image: plugins/docker
