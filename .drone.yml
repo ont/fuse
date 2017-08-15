@@ -9,6 +9,13 @@ pipeline:
       - go get
       - go build -o fuse
 
+  test:
+    image: golang
+    commands:
+      - export GOPATH=$(pwd)
+      - cd src/app
+      - go test
+
   publish-docker:
     image: plugins/docker
     tag:
