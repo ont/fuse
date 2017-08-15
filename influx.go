@@ -45,6 +45,7 @@ func NewInflux(options map[string]string) *Influx {
 
     c, err := client.NewHTTPClient(client.HTTPConfig{
         Addr: optionsFull["url"],
+        Timeout: 15 * time.Second,
     })
     if err != nil {
         log.Fatalln("influx: ", err)
@@ -139,7 +140,8 @@ func (i *Influx) RunWith(notifer *Notifer) {
 
             check.trigger.Touch(value)
         }
-        time.Sleep(time.Second * time.Duration(interval))
+
+        time.Sleep(time.Duration(interval) * time.Second)
     }
 }
 

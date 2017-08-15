@@ -36,6 +36,7 @@ func NewConsul(services []*Service, options map[string]string) *Consul {
     config := api.DefaultConfig()
 
     config.Address = optionsFull["url"]
+    config.WaitTime = 15 * time.Second
 
     client, err := api.NewClient(config)
 
@@ -78,7 +79,7 @@ func (c *Consul) RunWith(notifer *Notifer){
             c.checkServices(services)
         }
 
-        time.Sleep(time.Second * time.Duration(interval))
+        time.Sleep(time.Duration(interval) * time.Second)
     }
 }
 
