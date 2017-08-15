@@ -20,6 +20,13 @@ pipeline:
     image: plugins/docker
     tag:
       - latest
+    repo: ontrif/fuse
+    when:
+      branch: master
+
+  publish-docker:
+    image: plugins/docker
+    tag:
       - ${DRONE_TAG}
     repo: ontrif/fuse
     when:
