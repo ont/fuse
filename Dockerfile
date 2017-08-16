@@ -9,4 +9,7 @@ ADD ./bin/fuse /fuse
 # fix error "/bin/sh: /server: not found" 
 RUN mkdir /lib64 && ln -s /lib/libc.musl-x86_64.so.1 /lib64/ld-linux-x86-64.so.2
 
+# fix error "x509: failed to load system roots and no roots provided"
+RUN apk add --no-cache ca-certificates
+
 ENTRYPOINT ["/fuse"]
