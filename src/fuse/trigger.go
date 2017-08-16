@@ -1,12 +1,14 @@
 package main
 
 import (
+    "fmt"
     log "github.com/sirupsen/logrus"
 )
 
 type Trigger struct {
-    state  *State          // current active state
-    states []*State        // set of states to check
+    state    *State      // current active state
+    alerted  bool        // true - if current state was successfully alerted via callback function
+    states   []*State    // set of states to check
 
     callback func(state *State, lastValue interface{}) error  // callback to call after changing the state
 }
@@ -35,9 +37,14 @@ func (t *Trigger) AddState(state *State) {
     // set first state as active
     if len(t.states) == 1 {
         t.state = state
+        t.alerted = true
     }
 }
 
+/*
+ * Compares "value" with each internal state's value.
+ * Type of "value" must be string or float64 (it doesn't convert int to float).
+ */
 func (t *Trigger) Touch(value interface{}) {
     ni := int(0)
     newState := t.state
@@ -61,7 +68,17 @@ func (t *Trigger) Touch(value interface{}) {
     if t.state != newState {
         t.state = newState
         log.WithFields(log.Fields{"state" : newState.Name, "counter" : newState.counter}).Debug("trigger: activating new state")
-        t.callback(newState, value)
+        t.alerted = false
+    }
+
+    // try to resend on every touch if failed
+    if !t.alerted {
+        err := t.callback(t.state, value)
+        if err != nil {
+            log.WithFields(log.Fields{"err" : err}).Debug("trigger: error during calling callback")
+        } else {
+            t.alerted = true
+        }
     }
 }
 
@@ -96,7 +113,11 @@ func (s *State) test(value interface{}) bool {
         s.err = true
 
         // TODO: doesn't clutter output during tests
-        log.WithFields(log.Fields{"state" : s.Name, "value" : value, "state_value" : s.value}).Warn("trigger: wrong comparision")
+        log.WithFields(log.Fields{
+            "state" : s.Name,
+            "value" : fmt.Sprintf("%s", value),
+            "state_value" : fmt.Sprintf("%s", s.value),
+        }).Warn("trigger: wrong comparision")
     }
 
     return false
