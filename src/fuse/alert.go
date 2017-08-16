@@ -1,6 +1,5 @@
 package main
 
-import "fmt"
 import log "github.com/sirupsen/logrus"
 
 type Notifer struct {
@@ -49,8 +48,10 @@ func (n *Notifer) Notify(level string, channels interface{}, msg Message) error 
         return n.Warn(channels, msg)
     case "crit":
         return n.Crit(channels, msg)
+    default:
+        log.WithFields(log.Fields{"level": level}).Warn("alert: unknown level, sending as warn")
+        return n.Warn(channels, msg)
     }
-    return fmt.Errorf("Wrong notify level \"%s\"", level)
 }
 
 func (n *Notifer) Good(channels interface{}, msg Message) error {
