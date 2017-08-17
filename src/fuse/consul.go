@@ -143,7 +143,7 @@ func (c *Consul) defaultTrigger() *Trigger {
 
     trigger.AddState(&State{
         Name: "crit",
-        Cycles: 5,
+        Cycles: 20,
         operator: "=",
         value: "offline",
     })
