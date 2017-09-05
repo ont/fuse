@@ -153,6 +153,8 @@ func (c *Consul) defaultTrigger() *Trigger {
 
 func (c *Consul) checkServices(consulData map[string][]string){
     for _, service := range c.Services {
+        log.WithFields(log.Fields{"service" : service.Name}).Debug("consul : checking service")
+
         found := false
         for name, _ := range consulData {
             if name == service.Name {
