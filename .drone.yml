@@ -23,6 +23,7 @@ pipeline:
     repo: ontrif/fuse
     when:
       branch: master
+    secrets: [ docker_username, docker_password ]
 
   publish-docker:
     image: plugins/docker
@@ -31,3 +32,4 @@ pipeline:
     repo: ontrif/fuse
     when:
       event: tag
+    secrets: [ docker_username, docker_password ]
