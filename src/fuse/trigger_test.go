@@ -1,6 +1,8 @@
 package main
 
 import "testing"
+import "github.com/stretchr/testify/assert"
+import log "github.com/sirupsen/logrus"
 
 func TestStateMatrixEq(t *testing.T) {
     matrix := map[interface{}]map[interface{}]bool{
@@ -13,10 +15,8 @@ func TestStateMatrixEq(t *testing.T) {
                 Cycles: 1,
                 value: svalue,
             }
-            s.Touch(tvalue)
-            if s.IsActive() != result {
-                t.Errorf("Wrong state %#v for comparision %s == %s", s.IsActive(), svalue, tvalue)
-            }
+            s.Touch(tvalue, true)
+            assert.Equalf(t, result, s.IsReady(), "Wrong state %#v for comparision %s == %s", s.IsReady(), svalue, tvalue)
         }
     }
 }
@@ -33,10 +33,8 @@ func TestStateMatrixLt(t *testing.T) {
                 value: svalue,
                 operator: "<",
             }
-            s.Touch(tvalue)
-            if s.IsActive() != result {
-                t.Errorf("Wrong state %#v for comparision %s < %s", s.IsActive(), svalue, tvalue)
-            }
+            s.Touch(tvalue, true)
+            assert.Equalf(t, result, s.IsReady(), "Wrong state %#v for comparision %s < %s", s.IsReady(), svalue, tvalue)
         }
     }
 }
@@ -53,10 +51,8 @@ func TestStateMatrixGt(t *testing.T) {
                 value: svalue,
                 operator: ">",
             }
-            s.Touch(tvalue)
-            if s.IsActive() != result {
-                t.Errorf("Wrong state %#v for comparision %s > %s", s.IsActive(), svalue, tvalue)
-            }
+            s.Touch(tvalue, true)
+            assert.Equalf(t, result, s.IsReady(), "Wrong state %#v for comparision %s > %s", s.IsReady(), svalue, tvalue)
         }
     }
 }
@@ -73,10 +69,8 @@ func TestStateMatrixLte(t *testing.T) {
                 value: svalue,
                 operator: "<=",
             }
-            s.Touch(tvalue)
-            if s.IsActive() != result {
-                t.Errorf("Wrong state %#v for comparision %s <= %s", s.IsActive(), svalue, tvalue)
-            }
+            s.Touch(tvalue, true)
+            assert.Equalf(t, result, s.IsReady(), "Wrong state %#v for comparision %s <= %s", s.IsReady(), svalue, tvalue)
         }
     }
 }
@@ -93,10 +87,8 @@ func TestStateMatrixGte(t *testing.T) {
                 value: svalue,
                 operator: ">=",
             }
-            s.Touch(tvalue)
-            if s.IsActive() != result {
-                t.Errorf("Wrong state %#v for comparision %s >= %s", s.IsActive(), svalue, tvalue)
-            }
+            s.Touch(tvalue, true)
+            assert.Equalf(t, result, s.IsReady(), "Wrong state %#v for comparision %s >= %s", s.IsReady(), svalue, tvalue)
         }
     }
 }
@@ -107,24 +99,97 @@ func TestStateCounter(t *testing.T) {
         value: float64(123),
         operator: "<",
     }
-    s.Touch(0)
-    if s.IsActive() { t.Error("Must be inactive") }
+    s.Touch(0, true)
+    assert.False(t, s.IsReady(), "Must be inactive")
 
-    s.Touch(123)
-    if s.IsActive() { t.Error("Must be inactive") }
+    s.Touch(123, true)
+    assert.False(t, s.IsReady(), "Must be inactive")
 
-    s.Touch(0)
-    if s.IsActive() { t.Error("Must be inactive") }
+    s.Touch(0, true)
+    assert.False(t, s.IsReady(), "Must be inactive")
 
-    s.Touch(0)
-    if s.IsActive() { t.Error("Must be inactive") }
+    s.Touch(0, true)
+    assert.False(t, s.IsReady(), "Must be inactive")
 
-    s.Touch(0)
-    if !s.IsActive() { t.Error("Must be active") }
+    s.Touch(0, true)
+    assert.True(t, s.IsReady(), "Must be active")
 
-    s.Touch(123)
-    if s.IsActive() { t.Error("Must be inactive") }
+    s.Touch(123, true)
+    assert.False(t, s.IsReady(), "Must be inactive")
 
-    s.Touch(0)
-    if s.IsActive() { t.Error("Must be inactive") }
+    s.Touch(0, true)
+    assert.False(t, s.IsReady(), "Must be inactive")
+}
+
+
+func TestTrigger(t *testing.T) {
+    trigger := NewTrigger(func(state *State, value interface{}) error {
+        return nil
+    })
+
+    trigger.AddState(&State{
+        Name: "good",
+        Cycles: 2,
+        operator: "=",
+        value: "online",
+    })
+
+    trigger.AddState(&State{
+        Name: "warn",
+        Cycles: 2,
+        operator: "=",
+        value: "offline",
+    })
+
+    trigger.AddState(&State{
+        Name: "crit",
+        Cycles: 5,
+        operator: "=",
+        value: "offline",
+    })
+
+    log.Info("-----------------------")
+    log.SetLevel(log.DebugLevel)
+    assert.Equal(t, "good", trigger.state.Name, "Initial state of trigger must be 'good'")
+
+    trigger.Touch("offline")
+    assert.Equal(t, "good", trigger.state.Name, "First 'offline' must not change state of trigger")
+
+    trigger.Touch("offline")
+    assert.Equal(t, "warn", trigger.state.Name, "Second 'offline' must change state to 'warn")
+
+    trigger.Touch("offline")
+    assert.Equal(t, "warn", trigger.state.Name, "We are start counting from the beginning")
+
+    trigger.Touch("offline")
+    assert.Equal(t, "warn", trigger.state.Name, "Second 'offline' - state is 'warn'")
+
+    trigger.Touch("offline")
+    assert.Equal(t, "warn", trigger.state.Name, "Third 'offline' - state is 'warn'")
+
+    trigger.Touch("offline")
+    trigger.Touch("offline")
+    assert.Equal(t, "crit", trigger.state.Name, "Now it must be at 'crit' state")
+
+    trigger.Touch("online")
+    assert.Equal(t, "crit", trigger.state.Name, "'online' state doesn't immediatelly change trigger state")
+
+    trigger.Touch("offline")
+    trigger.Touch("offline")
+    assert.Equal(t, "crit", trigger.state.Name, "Trigger's state is still 'crit' and doesn't 'warn'")
+
+    trigger.Touch("offline")
+    assert.Equal(t, "crit", trigger.state.Name, "Trigger's state is still 'crit' and doesn't 'warn'")
+
+    trigger.Touch("online")
+    trigger.Touch("online")
+    assert.Equal(t, "good", trigger.state.Name, "Trigger's state must be 'good' now")
+
+    trigger.Touch("offline")
+    assert.Equal(t, "good", trigger.state.Name, "'good' state is stable and doesn't immediatelly switched to 'warn'")
+
+    trigger.Touch("offline")
+    assert.Equal(t, "warn", trigger.state.Name, "Second 'offline' must switch state to 'warn'")
+
+    log.SetLevel(log.InfoLevel)
 }

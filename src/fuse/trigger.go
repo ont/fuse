@@ -46,29 +46,32 @@ func (t *Trigger) AddState(state *State) {
  * Type of "value" must be string or float64 (it doesn't convert int to float).
  */
 func (t *Trigger) Touch(value interface{}) {
-    ni := int(0)
     newState := t.state
 
-    for i, state := range t.states {
-        state.Touch(value)
+    log.WithFields(log.Fields{"value" : value}).Debug("trigger: comparing with value")
+    for _, state := range t.states {
+        canReset := (state != t.state)  // reset only non-active states
+        testOk := state.Touch(value, canReset)
 
-        if state.IsActive() {
+        // current test is passed and state is ready to be active
+        if testOk && state.IsReady() {
             newState = state
-            ni = i
         }
     }
 
-    // reset all previous states, only newState must be active
-    for i, state := range t.states {
-        if i < ni {
-            state.Reset()
-        }
-    }
+    t.LogStates()
 
     if t.state != newState {
         t.state = newState
-        log.WithFields(log.Fields{"state" : newState.Name, "counter" : newState.counter}).Debug("trigger: activating new state")
+        log.WithFields(log.Fields{"state" : newState.Name}).Debug("trigger: activating new state")
         t.alerted = false
+
+        // reset all states after switching to new active state
+        for _, state := range t.states {
+            if state != t.state {
+                state.Reset()
+            }
+        }
     }
 
     // try to resend on every touch if failed
@@ -82,22 +85,42 @@ func (t *Trigger) Touch(value interface{}) {
     }
 }
 
-func (s *State) Touch(value interface{}) {
+func (t *Trigger) LogStates() {
+    msg := ""
+    for _, state := range t.states {
+        msg += fmt.Sprintf("%s:%d(%d) ", state.Name, state.counter, state.Cycles)
+    }
+    log.WithFields(log.Fields{"states" : msg}).Debug("trigger: states after touching")
+}
+
+/*
+ * Increments state's counter if internal test returns "true".
+ * Reset counter if it is allowed (canReset = true) and internal test returns "false".
+ */
+func (s *State) Touch(value interface{}, canReset bool) bool {
     if s.test(value) {
         s.counter += 1
-        log.WithFields(log.Fields{"state" : s.Name, "counter" : s.counter}).Debug("trigger: test successfull, counter++")
-    } else {
+        //log.WithFields(log.Fields{"state" : s.Name, "counter" : s.counter}).Debug("trigger: test successfull, counter++")
+        return true
+    } else if canReset {
         s.counter = 0
         //log.WithFields(log.Fields{"state" : s.Name, "counter" : s.counter}).Debug("trigger: test failed, reset counter")
     }
+    return false
 }
 
+/*
+ * Resets internal state's counter
+ */
 func (s *State) Reset() {
     s.counter = 0
     //log.WithFields(log.Fields{"state" : s.Name, "counter" : s.counter}).Debug("trigger: resetting counter by request")
 }
 
-func (s *State) IsActive() bool {
+/*
+ * Checks that internal counter is greater then assigned limit
+ */
+func (s *State) IsReady() bool {
     return s.counter >= s.Cycles
 }
 
@@ -131,7 +154,7 @@ func (s *State) testString(value interface{}) (bool, bool) {
         return false, false
     }
 
-    log.WithFields(log.Fields{"state" : s.Name, "value" : value, "state_value" : s.value}).Debug("trigger: comparing as strings")
+    //log.WithFields(log.Fields{"state" : s.Name, "value" : value, "state_value" : s.value}).Debug("trigger: comparing as strings")
     return svalue == tmp, true
 }
 
@@ -143,7 +166,7 @@ func (s *State) testInt(value interface{}) (bool, bool) {
         return false, false
     }
 
-    log.WithFields(log.Fields{"state" : s.Name, "value" : value}).Debug("trigger: comparing int as float")
+    //log.WithFields(log.Fields{"state" : s.Name, "value" : value}).Debug("trigger: comparing int as float")
     return s.testFloat(float64(tmp))
 }
 
@@ -155,7 +178,7 @@ func (s *State) testFloat(value interface{}) (bool, bool) {
         return false, false
     }
 
-    log.WithFields(log.Fields{"state" : s.Name, "value" : value, "state_value" : s.value, "operator": s.operator}).Debug("trigger: comparing as floats")
+    //log.WithFields(log.Fields{"state" : s.Name, "value" : value, "state_value" : s.value, "operator": s.operator}).Debug("trigger: comparing as floats")
 
     switch s.operator {
         case "=":  return tmp == fvalue, true
