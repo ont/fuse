@@ -6,16 +6,10 @@ pipeline:
     commands:
       - export GOPATH=$(pwd)
       - cd src/fuse
-      - go get
+      - go get -t
+      - go test
       - go build
 
-  test:
-    image: golang
-    commands:
-      - export GOPATH=$(pwd)
-      - cd src/fuse
-      - go get
-      - go test
 
   publish-docker:
     image: plugins/docker
