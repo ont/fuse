@@ -14,6 +14,7 @@ pipeline:
     commands:
       - export GOPATH=$(pwd)
       - cd src/fuse
+      - go get
       - go test
 
   publish-docker:
