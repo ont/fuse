@@ -55,7 +55,7 @@ func getParser() *Parser {
         # Influx
         INFLUX   ← 'influx' '{' OPTION+ TEMPLATE+ 'checks' '{' CHECK+ '}' '}'
         TEMPLATE ← 'template' FNAME '(' (ARG ',')* ARG ')' '{' BODY '}'
-        CHECK    ← FNAME '(' (STRING ',')* STRING ')' TRIGGER
+        CHECK    ← FNAME '(' (STRING ',')* STRING ')' 'as' STRING TRIGGER
 
         # Trigger
         TRIGGER     ← STATE+
@@ -211,14 +211,16 @@ func getParser() *Parser {
 
     g["CHECK"].Action = func(v *Values, d Any) (Any, error) {
         values := make([]string, 0, v.Len()-2)
-        for i := 1; i < v.Len()-1; i++ {
+        for i := 1; i < v.Len()-2; i++ {
             values = append(values, v.ToStr(i))
         }
 
         trigger, _ := v.Vs[v.Len()-1].(*Trigger)
+        info, _ := v.Vs[v.Len()-2].(string)
 
         return &Check{
-            name: v.ToStr(0),
+            template: v.ToStr(0),
+            info: info,
             values: values,
             trigger: trigger,
         }, nil

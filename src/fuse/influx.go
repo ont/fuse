@@ -1,10 +1,12 @@
 package main
 
 import (
+    "io"
     "fmt"
     "time"
     "strconv"
     "strings"
+    "crypto/md5"
     "encoding/json"
     //"github.com/davecgh/go-spew/spew"
     "github.com/influxdata/influxdb/client/v2"
@@ -27,9 +29,17 @@ type Template struct {
 }
 
 type Check struct {
-    name     string
-    values   []string
-    trigger  *Trigger
+    template  string     // name of template
+    info      string     // info string for alert message
+    values    []string
+    trigger   *Trigger
+}
+
+// TODO: add constructor and save calculation into cache-field
+func (c *Check) Id() string {
+    h := md5.New()
+    io.WriteString(h, c.template + "|" + c.info + "|" + strings.Join(c.values,"|"))
+    return fmt.Sprintf("%.5x", h.Sum(nil))
 }
 
 func NewInflux(options map[string]string) *Influx {
@@ -119,7 +129,7 @@ func (i *Influx) RunWith(notifer *Notifer) {
 
         for _, check := range i.checks {
 
-            log.WithFields(log.Fields{"check" : check.name}).Debug("influx: next check")
+            log.WithFields(log.Fields{"info" : check.info}).Debug("influx: next check")
 
             sql := i.getSqlForCheck(check)
             log.WithFields(log.Fields{"sql" : strings.TrimSpace(sql)}).Debug("influx: executing sql")
@@ -149,23 +159,25 @@ func (i *Influx) initTriggers(interval int) {
     channel := i.options["alert"]
 
     for _, check := range i.checks {
-        _name := check.name  // catch var for closure
-        _check := check      // catch var for closure
+        _check := check  // catch var for closure
 
+        // assign new callback-closure
         check.trigger.callback = func(state *State, lastValue interface{}) error {
             details := i.getDetailsForCheck(_check)
             details["value"] = fmt.Sprintf("%v", lastValue)
+            details["template"] = _check.template
+            details["check-id"] = _check.Id()
 
             sql := i.getSqlForCheck(_check)
 
             var body string
             switch state.Name {
                 case "good":
-                    body = fmt.Sprintf("Query \"%s\" is good more than %d sec. ```%s```", _name, interval * state.Cycles, sql)
+                    body = fmt.Sprintf("Query is good more than %d sec. ```%s```", interval * state.Cycles, sql)
                 case "warn":
-                    body = fmt.Sprintf("*WARN:* query \"%s\" has bad value for more than %d sec. ```%s```", _name, interval * state.Cycles, sql)
+                    body = fmt.Sprintf("*WARN:* query has bad value for more than %d sec. ```%s```", interval * state.Cycles, sql)
                 case "crit":
-                    body = fmt.Sprintf("*CRITICAL:* query \"%s\" has bad value for more than %d sec. ```%s```", _name, interval * state.Cycles, sql)
+                    body = fmt.Sprintf("*CRITICAL:* query has bad value for more than %d sec. ```%s```", interval * state.Cycles, sql)
             }
 
             err := i.notifer.Notify(
@@ -174,7 +186,7 @@ func (i *Influx) initTriggers(interval int) {
                 Message{
                     IconUrl: "https://aperogeek.fr/wp-content/uploads/2017/04/influx_logo.png",  // TODO: replace
                     From: "influx",
-                    Title: fmt.Sprintf("QUERY: %s", _name),
+                    Title: fmt.Sprintf("QUERY: %s", _check.info),
                     Body: body,
                     Details: details,
                 },
@@ -185,7 +197,7 @@ func (i *Influx) initTriggers(interval int) {
 }
 
 func (i *Influx) getDetailsForCheck(check *Check) map[string]string {
-    tpl, _ := i.templates[check.name]
+    tpl, _ := i.templates[check.template]
     str := ""
     for i, arg := range tpl.args {
         str += fmt.Sprintf("%s = \"%s\" \n", arg, check.values[i])
@@ -197,9 +209,9 @@ func (i *Influx) getDetailsForCheck(check *Check) map[string]string {
 }
 
 func (i *Influx) getSqlForCheck(check *Check) string {
-    tpl, ok := i.templates[check.name]
+    tpl, ok := i.templates[check.template]
     if !ok {
-        log.WithFields(log.Fields{ "module" : "influx" }).Fatalf("influx: missing template '%s'\n", check.name)
+        log.WithFields(log.Fields{ "module" : "influx" }).Fatalf("influx: missing template '%s'\n", check.template)
     }
 
     return tpl.Format(check.values...)
