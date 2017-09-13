@@ -34,6 +34,8 @@ func (f *Fuse) RunWith(notifer *Notifer) {
         })
     }
 
+    notifer.Start()
+
     wg.Add(len(f.Monitors))
     for _, monitor := range f.Monitors {
         go func(monitor Monitor) {

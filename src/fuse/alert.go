@@ -23,6 +23,11 @@ type Alerter interface {
     Good(msg Message) error
     Warn(msg Message) error
     Crit(msg Message) error
+
+    Report(reportId string, msg Message) error
+    Resolve(reportId string) error
+
+    Start() error
 }
 
 func NewNotifer() *Notifer {
@@ -88,6 +93,15 @@ func (n *Notifer) Crit(channels interface{}, msg Message) error {
         }
         return err
     })
+}
+
+func (n *Notifer) Start() {
+    for name, alerter := range n.Alerters {
+        go func(){
+            log.WithFields(log.Fields{"name": name}).Info("notifer: starting alerter")
+            log.WithFields(log.Fields{"name": name}).Fatalf("notifer: error during start: %s", alerter.Start())
+        }()
+    }
 }
 
 func unpackChannels(channels interface{}, callback func(string)error) error {

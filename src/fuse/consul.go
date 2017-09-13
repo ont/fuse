@@ -74,7 +74,7 @@ func (c *Consul) RunWith(notifer *Notifer){
 
         // TODO: handle multiple error (write to log/slack)
         if err != nil {
-            log.Error("consul: error during check cycle", err)
+            log.Error("consul: error during check cycle: ", err)
         } else {
             c.checkServices(services)
         }

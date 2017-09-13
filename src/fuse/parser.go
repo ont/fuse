@@ -54,7 +54,7 @@ func getParser() *Parser {
 
         # Influx
         INFLUX   ← 'influx' '{' OPTION+ TEMPLATE+ 'checks' '{' CHECK+ '}' '}'
-        TEMPLATE ← 'template' FNAME '(' (ARG ',')* ARG ')' '{' BODY '}'
+        TEMPLATE ← 'template' FNAME '(' ARGS ')' '{' BODY '}' ('preview' '{' BODY '}')?
         CHECK    ← FNAME '(' (STRING ',')* STRING ')' 'as' STRING TRIGGER
 
         # Trigger
@@ -69,6 +69,7 @@ func getParser() *Parser {
 
         FNAME   ←  < (![ \n(] .)+ >
         ARG     ←  < (![ ,)] .)+ >  # any chars except space, ',' or ')'
+        ARGS    ←  (ARG ',')* ARG
         BODY    ←  < (!'}' .)+ >
 
         KEY     ←  < (![ =] .)+ >
@@ -197,14 +198,18 @@ func getParser() *Parser {
     }
 
     g["TEMPLATE"].Action = func(v *Values, d Any) (Any, error) {
-        args := make([]string, 0, v.Len()-2)
-        for i := 1; i < v.Len()-1; i++ {
-            args = append(args, v.ToStr(i))
+        args, _ := v.Vs[1].([]string)
+        body := v.ToStr(2)
+
+        preview := ""
+        if v.Len() > 3 {
+            preview = v.ToStr(3)
         }
 
         return &Template{
             Name: v.ToStr(0),
-            body: v.ToStr(v.Len()-1),
+            body: body,
+            preview: preview,
             args: args,
         }, nil
     }
@@ -229,6 +234,14 @@ func getParser() *Parser {
     g["ARG"].Action = func(v *Values, d Any) (Any, error) {
         //spew.Dump("KEY", v.Token())
         return v.Token(), nil
+    }
+
+    g["ARGS"].Action = func(v *Values, d Any) (Any, error) {
+        values := make([]string, 0, v.Len())
+        for i := 0; i < v.Len(); i++ {
+            values = append(values, v.ToStr(i))
+        }
+        return values, nil
     }
 
     g["OPTION"].Action = func(v *Values, d Any) (Any, error) {

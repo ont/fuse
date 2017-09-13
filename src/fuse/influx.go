@@ -23,9 +23,10 @@ type Influx struct {
 }
 
 type Template struct {
-    Name   string
-    body   string
-    args   []string
+    Name     string
+    body     string
+    preview  string
+    args     []string
 }
 
 type Check struct {
@@ -136,7 +137,7 @@ func (i *Influx) RunWith(notifer *Notifer) {
 
             value, err := i.query(sql)
             if err != nil {
-                log.Error("influx: error during query execution:", err)
+                log.Error("influx: error during query execution: ", err)
                 continue
             }
 
@@ -218,11 +219,19 @@ func (i *Influx) getSqlForCheck(check *Check) string {
 }
 
 func (t *Template) Format(values ...string) string {
+    return t.formatTemplate(t.body, values)
+}
+
+func (t *Template) FormatPreview(values ...string) string {
+    return t.formatTemplate(t.preview, values)
+}
+
+func (t *Template) formatTemplate(tpl string, values []string) string {
     if len(values) != len(t.args) {
-        log.WithFields(log.Fields{ "module" : "influx/template" }).Fatalln("influx: wrong call of template", t.Name, " - wrong amount of arguments")
+        log.WithFields(log.Fields{ "values" : values, "args" : t.args }).Fatalln("influx: wrong call of template", t.Name, " - wrong amount of arguments")
     }
 
-    res := t.body
+    res := tpl
     for i, arg := range t.args {
         res = strings.Replace(res, "%" + arg, values[i], -1)
     }
