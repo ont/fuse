@@ -1,9 +1,11 @@
 package main
 
 import (
+    "io"
     "fmt"
     "time"
     "strconv"
+    "crypto/md5"
     "github.com/hashicorp/consul/api"
     log "github.com/sirupsen/logrus"
 )
@@ -21,6 +23,13 @@ type Consul struct {
 type Service struct {
     Name     string
     trigger  *Trigger
+}
+
+
+func (s *Service) GetReportId() string {
+    h := md5.New()
+    io.WriteString(h, s.Name)
+    return fmt.Sprintf("%.5x", h.Sum(nil))
 }
 
 func NewConsul(services []*Service, options map[string]string) *Consul {
@@ -91,20 +100,38 @@ func (c *Consul) addTriggers(interval int){
             service.trigger = c.defaultTrigger()
         }
 
-        _name := service.Name
-        service.trigger.callback = func(state *State, lastValue interface{}) error {
-            details := map[string]string{
-                "value": fmt.Sprintf("%v", lastValue),
-            }
+        // lock var for closure function
+        _service := service
 
+        service.trigger.callback = func(state *State, lastValue interface{}) error {
             var body string
+            var title string
             switch state.Name {
                 case "good":
-                    body = fmt.Sprintf("Service \"%s\" *is online* more than %d sec.", _name, interval * state.Cycles)
+                    title = fmt.Sprintf("SERVICE: *%s* in GOOD state", _service.Name)
+                    body = fmt.Sprintf("Service `%s` is online more than %d sec.", _service.Name, interval * state.Cycles)
                 case "warn":
-                    body = fmt.Sprintf("*WARN:* service \"%s\" *is offline* more than %d sec.", _name, interval * state.Cycles)
+                    title = fmt.Sprintf("SERVICE: *%s* in WARN state", _service.Name)
+                    body = fmt.Sprintf("Service \"%s\" is offline more than %d sec.", _service.Name, interval * state.Cycles)
                 case "crit":
-                    body = fmt.Sprintf("*CRITICAL:* service \"%s\" *is offline* more than %d sec.", _name, interval * state.Cycles)
+                    title = fmt.Sprintf("SERVICE: *%s* in CRITICAL state", _service.Name)
+                    body = fmt.Sprintf("Service \"%s\" is offline more than %d sec.", _service.Name, interval * state.Cycles)
+                default:
+                    title = fmt.Sprintf("SERVICE: *%s* in WARN state", _service.Name)
+                    body = fmt.Sprintf("Service \"%s\" is offline more than %d sec.", _service.Name, interval * state.Cycles)
+            }
+
+            switch state.Name {
+                case "good":
+                    c.notifer.Resolve(_service.GetReportId())
+                default:
+                    c.notifer.Report(
+                        _service.GetReportId(),
+                        Message{
+                            Title: title,
+                            Body: body,
+                        },
+                    )
             }
 
             err := c.notifer.Notify(
@@ -113,9 +140,8 @@ func (c *Consul) addTriggers(interval int){
                 Message{
                     IconUrl: "https://pbs.twimg.com/media/C5SO5KRVcAA6Ag6.png",  // TODO: replace
                     From: "consul",
-                    Title: fmt.Sprintf("SERVICE: %s", _name),
+                    Title: title,
                     Body: body,
-                    Details: details,
                 },
             )
             return err

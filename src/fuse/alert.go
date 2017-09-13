@@ -104,6 +104,22 @@ func (n *Notifer) Start() {
     }
 }
 
+func (n *Notifer) Report(reportId string, msg Message) {
+    for name, alerter := range n.Alerters {
+        if err := alerter.Report(reportId, msg); err != nil {
+            log.WithFields(log.Fields{"alerter": name}).Error("notifer: error during sending report to alerter: ", err)
+        }
+    }
+}
+
+func (n *Notifer) Resolve(reportId string) {
+    for name, alerter := range n.Alerters {
+        if err := alerter.Resolve(reportId); err != nil {
+            log.WithFields(log.Fields{"alerter": name}).Error("notifer: error during resolve report in alerter: ", err)
+        }
+    }
+}
+
 func unpackChannels(channels interface{}, callback func(string)error) error {
     var resErr error
 

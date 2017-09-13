@@ -37,7 +37,7 @@ type Check struct {
 }
 
 // TODO: add constructor and save calculation into cache-field
-func (c *Check) Id() string {
+func (c *Check) GetReportId() string {
     h := md5.New()
     io.WriteString(h, c.template + "|" + c.info + "|" + strings.Join(c.values,"|"))
     return fmt.Sprintf("%.5x", h.Sum(nil))
@@ -167,7 +167,7 @@ func (i *Influx) initTriggers(interval int) {
             details := i.getDetailsForCheck(_check)
             details["value"] = fmt.Sprintf("%v", lastValue)
             details["template"] = _check.template
-            details["check-id"] = _check.Id()
+            details["report-id"] = _check.GetReportId()
 
             sql := i.getSqlForCheck(_check)
 

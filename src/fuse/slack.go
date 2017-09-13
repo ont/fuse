@@ -33,6 +33,7 @@ func NewSlackClient(channel string, token string, icon_url string) *SlackClient 
         api: slackApi,
         channel: channel,
         params: &params,
+        reports: make(map[string]Message),
     }
 }
 
@@ -166,5 +167,12 @@ func (s *SlackClient) ProcessListCmd(options []string) string {
 }
 
 func (s *SlackClient) ProcessShowCmd(options []string) string {
-    return "some answer"
+    id := options[0]
+    report, ok := s.reports[id]
+
+    if !ok {
+        return fmt.Sprintf("Can't find report with id: `%s`", id)
+    }
+
+    return fmt.Sprintf("*%s*\n%s", report.Title, report.Body)
 }
