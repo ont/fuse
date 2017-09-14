@@ -234,7 +234,11 @@ func (i *Influx) initTriggers(interval int) {
 
             if msg.Level != MSG_LVL_GOOD {
                 preview := i.getPreview(&msg, _check)
-                msg.Body += "\n*preview query:*\n" + preview
+                if preview == "" {
+                    msg.Body += "\n`no preview query available`\n"
+                } else {
+                    msg.Body += "\n*preview query:*\n" + preview
+                }
             }
 
             switch msg.Level {
@@ -250,6 +254,7 @@ func (i *Influx) initTriggers(interval int) {
 
 /*
  * Executes and returns formatted output of preview SQL query.
+ * Returns empty string preview query was not provided in config file.
  * This method will retry 5 times before fail during influx preview querying.
  */
 func (i *Influx) getPreview(msg *Message, check *Check) string {
@@ -257,6 +262,10 @@ func (i *Influx) getPreview(msg *Message, check *Check) string {
 
     var preview string
     sql := i.getSqlPreviewForCheck(check)
+
+    if sql == "" {
+        return ""
+    }
 
     for try := 0; ; try++ {
         res, err := i.queryMultipleColumns(sql)
