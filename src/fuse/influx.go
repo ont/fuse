@@ -167,7 +167,6 @@ func (i *Influx) initTriggers(interval int) {
             details := i.getDetailsForCheck(_check)
             details["value"] = fmt.Sprintf("%v", lastValue)
             details["template"] = _check.template
-            details["report-id"] = _check.GetReportId()
 
             sql := i.getSqlForCheck(_check)
 
@@ -181,18 +180,22 @@ func (i *Influx) initTriggers(interval int) {
                     body = fmt.Sprintf("*CRITICAL:* query has bad value for more than %d sec. ```%s```", interval * state.Cycles, sql)
             }
 
-            err := i.notifer.Notify(
-                state.Name,  // notify level
-                channel,
-                Message{
-                    IconUrl: "https://aperogeek.fr/wp-content/uploads/2017/04/influx_logo.png",  // TODO: replace
-                    From: "influx",
-                    Title: fmt.Sprintf("QUERY: %s", _check.info),
-                    Body: body,
-                    Details: details,
-                },
-            )
-            return err
+            msg := Message{
+                IconUrl: "https://aperogeek.fr/wp-content/uploads/2017/04/influx_logo.png",  // TODO: replace
+                From: "influx",
+                Title: fmt.Sprintf("QUERY: *%s* in %s state", _check.info, strings.ToUpper(state.Name)),
+                Body: body,
+                Details: details,
+            }
+
+            msg.ParseLevel(state.Name)
+
+            switch state.Name {
+                case "good": i.notifer.Resolve(_check.GetReportId())
+                default: i.notifer.Report(_check.GetReportId(), msg)
+            }
+
+            return i.notifer.Notify(state.Name, channel, msg)
         }
     }
 }
@@ -216,6 +219,15 @@ func (i *Influx) getSqlForCheck(check *Check) string {
     }
 
     return tpl.Format(check.values...)
+}
+
+func (i *Influx) getSqlPreviewForCheck(check *Check) string {
+    tpl, ok := i.templates[check.template]
+    if !ok {
+        log.WithFields(log.Fields{ "module" : "influx" }).Fatalf("influx: missing template '%s'\n", check.template)
+    }
+
+    return tpl.FormatPreview(check.values...)
 }
 
 func (t *Template) Format(values ...string) string {

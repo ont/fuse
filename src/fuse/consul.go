@@ -4,6 +4,7 @@ import (
     "io"
     "fmt"
     "time"
+    "strings"
     "strconv"
     "crypto/md5"
     "github.com/hashicorp/consul/api"
@@ -104,47 +105,24 @@ func (c *Consul) addTriggers(interval int){
         _service := service
 
         service.trigger.callback = func(state *State, lastValue interface{}) error {
-            var body string
-            var title string
-            switch state.Name {
-                case "good":
-                    title = fmt.Sprintf("SERVICE: *%s* in GOOD state", _service.Name)
-                    body = fmt.Sprintf("Service `%s` is online more than %d sec.", _service.Name, interval * state.Cycles)
-                case "warn":
-                    title = fmt.Sprintf("SERVICE: *%s* in WARN state", _service.Name)
-                    body = fmt.Sprintf("Service \"%s\" is offline more than %d sec.", _service.Name, interval * state.Cycles)
-                case "crit":
-                    title = fmt.Sprintf("SERVICE: *%s* in CRITICAL state", _service.Name)
-                    body = fmt.Sprintf("Service \"%s\" is offline more than %d sec.", _service.Name, interval * state.Cycles)
-                default:
-                    title = fmt.Sprintf("SERVICE: *%s* in WARN state", _service.Name)
-                    body = fmt.Sprintf("Service \"%s\" is offline more than %d sec.", _service.Name, interval * state.Cycles)
+            title := fmt.Sprintf("SERVICE: *%s* in %s state", _service.Name, strings.ToUpper(state.Name))
+            body := fmt.Sprintf("Service \"%s\" is offline more than %d sec.", _service.Name, interval * state.Cycles)
+
+            msg := Message{
+                IconUrl: "https://pbs.twimg.com/media/C5SO5KRVcAA6Ag6.png",  // TODO: replace
+                From: "consul",
+                Title: title,
+                Body: body,
             }
 
+            msg.ParseLevel(state.Name)
+
             switch state.Name {
-                case "good":
-                    c.notifer.Resolve(_service.GetReportId())
-                default:
-                    c.notifer.Report(
-                        _service.GetReportId(),
-                        Message{
-                            Title: title,
-                            Body: body,
-                        },
-                    )
+                case "good": c.notifer.Resolve(_service.GetReportId())
+                default: c.notifer.Report(_service.GetReportId(), msg)
             }
 
-            err := c.notifer.Notify(
-                state.Name,  // notify level
-                channel,
-                Message{
-                    IconUrl: "https://pbs.twimg.com/media/C5SO5KRVcAA6Ag6.png",  // TODO: replace
-                    From: "consul",
-                    Title: title,
-                    Body: body,
-                },
-            )
-            return err
+            return c.notifer.Notify(state.Name, channel, msg)
 
         }
     }

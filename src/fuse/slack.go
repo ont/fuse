@@ -1,12 +1,13 @@
 package main
 
 import (
-    "io"
+    //"io"
     "fmt"
     "time"
     "sort"
     "strings"
     "net/http"
+    "encoding/json"
     "github.com/nlopes/slack"
     //"github.com/davecgh/go-spew/spew"
 )
@@ -14,77 +15,71 @@ import (
 var slackApi *slack.Client
 
 type SlackClient struct {
-    api      *slack.Client
-    channel  string
-    params   *slack.PostMessageParameters
-    reports  map[string]Message
+    api       *slack.Client
+    channel   string
+    icon_url  string
+    reports   map[string]Message
 }
 
 
 func NewSlackClient(channel string, token string, icon_url string) *SlackClient {
     slackApi := slack.New(token)
 
-    params := slack.PostMessageParameters{
-        Username: "fuse",
-        IconURL: icon_url,
-    }
-
     return &SlackClient{
         api: slackApi,
         channel: channel,
-        params: &params,
+        icon_url: icon_url,
         reports: make(map[string]Message),
     }
 }
 
 func (s *SlackClient) Good(msg Message) error {
-    attachment := slack.Attachment{
-        Title: msg.Title,
-        Text: msg.Body,
-        MarkdownIn: []string{"text"},
-        Fields: s.makeFields(msg.Details),
-        Color: "good",
-        Footer: fmt.Sprintf("%s | %s", msg.From, time.Now().Format("2006-01-02 15:04:05")),
-        FooterIcon: msg.IconUrl,
-    }
-    s.params.Attachments = []slack.Attachment{attachment}
+    msg.Level = MSG_LVL_GOOD
+    params := s.messageToParams(msg)
 
-    _, _, err := s.api.PostMessage(s.channel, "", *s.params)
+    _, _, err := s.api.PostMessage(s.channel, "", *params)
     return err
 }
 
 func (s *SlackClient) Warn(msg Message) error {
-    // TODO: refactor code duplication
-    attachment := slack.Attachment{
-        Title: msg.Title,
-        Text: msg.Body,
-        MarkdownIn: []string{"text"},
-        Fields: s.makeFields(msg.Details),
-        Color: "warning",
-        Footer: fmt.Sprintf("%s | %s", msg.From, time.Now().Format("2006-01-02 15:04:05")),
-        FooterIcon: msg.IconUrl,
-    }
-    s.params.Attachments = []slack.Attachment{attachment}
+    msg.Level = MSG_LVL_WARN
+    params := s.messageToParams(msg)
 
-    _, _, err := s.api.PostMessage(s.channel, "", *s.params)
+    _, _, err := s.api.PostMessage(s.channel, "", *params)
     return err
 }
 
 func (s *SlackClient) Crit(msg Message) error {
-    // TODO: refactor code duplication
+    msg.Level = MSG_LVL_CRIT
+    params := s.messageToParams(msg)
+
+    _, _, err := s.api.PostMessage(s.channel, "", *params)
+    return err
+}
+
+func (s *SlackClient) messageToParams(msg Message) *slack.PostMessageParameters {
+    params := s.makeDefaultSlackParams()
+
     attachment := slack.Attachment{
+        Color: s.levelToColor(msg.Level),
         Title: msg.Title,
         Text: msg.Body,
         MarkdownIn: []string{"text"},
         Fields: s.makeFields(msg.Details),
-        Color: "danger",
         Footer: fmt.Sprintf("%s | %s", msg.From, time.Now().Format("2006-01-02 15:04:05")),
         FooterIcon: msg.IconUrl,
     }
-    s.params.Attachments = []slack.Attachment{attachment}
 
-    _, _, err := s.api.PostMessage(s.channel, "", *s.params)
-    return err
+    params.Attachments = []slack.Attachment{attachment}
+
+    return params
+}
+
+func (s *SlackClient) makeDefaultSlackParams() *slack.PostMessageParameters {
+    return &slack.PostMessageParameters{
+        Username: "fuse",
+        IconURL: s.icon_url,
+    }
 }
 
 func (s *SlackClient) makeFields(details map[string]string) []slack.AttachmentField {
@@ -129,15 +124,17 @@ func (s *SlackClient) Start() error {
     http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request){
         cmd := r.FormValue("text")
 
-        ans := s.ProcessCmd(cmd)
+        params := s.ProcessCmd(cmd)
 
-        io.WriteString(w, ans)
+        // output json answer
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(params)
     })
 
     return http.ListenAndServe(":7777", nil)
 }
 
-func (s *SlackClient) ProcessCmd(cmd string) string {
+func (s *SlackClient) ProcessCmd(cmd string) *slack.PostMessageParameters {
     arr := strings.Split(cmd, " ")
     switch arr[0] {
     case "help": return s.ProcessHelpCmd()
@@ -147,32 +144,58 @@ func (s *SlackClient) ProcessCmd(cmd string) string {
     }
 }
 
-func (s *SlackClient) ProcessHelpCmd() string {
-    return "Usage:\n" +
+func (s *SlackClient) ProcessHelpCmd() *slack.PostMessageParameters {
+    params := s.makeDefaultSlackParams()
+
+    params.Text = "Usage:\n" +
         "`/fuse help` — this help\n" +
         "`/fuse list` — list all active reports\n" +
         "`/fuse show {report-id}` — show one particular report from list"
+
+    return params
 }
 
-func (s *SlackClient) ProcessListCmd(options []string) string {
-    res := ""
+func (s *SlackClient) ProcessListCmd(options []string) *slack.PostMessageParameters {
+    params := s.makeDefaultSlackParams()
+
+    if len(s.reports) == 0 {
+        params.Text = "No issue reports! All works!"
+        return params
+    }
+
+    attachments := make([]slack.Attachment, 0, len(s.reports))
+
     for id, report := range s.reports {
-        res += fmt.Sprintf("`%s` — %s\n", id, report.Title)
+        attachments = append(attachments, slack.Attachment{
+            Text: fmt.Sprintf("`%s` — %s\n", id, report.Title),
+            Color: s.levelToColor(report.Level),
+            MarkdownIn: []string{"text"},
+        })
     }
 
-    if res == "" {
-        return "No issue reports! All works!"
-    }
-    return res
+    params.Attachments = attachments
+
+    return params
 }
 
-func (s *SlackClient) ProcessShowCmd(options []string) string {
+func (s *SlackClient) levelToColor(level int) string {
+    switch level {
+        case MSG_LVL_GOOD: return "good"
+        case MSG_LVL_WARN: return "warning"
+        case MSG_LVL_CRIT: return "danger"
+        default: return ""
+    }
+}
+
+func (s *SlackClient) ProcessShowCmd(options []string) *slack.PostMessageParameters {
     id := options[0]
     report, ok := s.reports[id]
 
     if !ok {
-        return fmt.Sprintf("Can't find report with id: `%s`", id)
+        params := s.makeDefaultSlackParams()
+        params.Text = fmt.Sprintf("Can't find report with id: `%s`", id)
+        return params
     }
 
-    return fmt.Sprintf("*%s*\n%s", report.Title, report.Body)
+    return s.messageToParams(report)
 }

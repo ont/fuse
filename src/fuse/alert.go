@@ -6,7 +6,17 @@ type Notifer struct {
     Alerters map[string]Alerter
 }
 
+const (
+    MSG_LVL_UNKN = iota
+    MSG_LVL_GOOD = iota
+    MSG_LVL_WARN = iota
+    MSG_LVL_CRIT = iota
+)
+
 type Message struct {
+    // message warn level - MSG_GOOD || MSG_WARN || MSG_CRIT
+    Level    int
+
     // context info (consul/influx/...)
     IconUrl  string
     From     string
@@ -140,4 +150,13 @@ func unpackChannels(channels interface{}, callback func(string)error) error {
     }
 
     return resErr
+}
+
+func (m *Message) ParseLevel(level string) {
+    switch level {
+        case "good": m.Level = MSG_LVL_GOOD
+        case "warn": m.Level = MSG_LVL_WARN
+        case "crit": m.Level = MSG_LVL_CRIT
+        default: m.Level = MSG_LVL_UNKN
+    }
 }
