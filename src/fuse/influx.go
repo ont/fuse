@@ -78,14 +78,19 @@ func (i *Influx) AddCheck(check *Check) {
     i.checks = append(i.checks, check)
 }
 
-func (i *Influx) query(cmd string) (interface{}, error) {
-    // Create a new HTTPClient
+
+/*
+ * Executes query and returns first column as string or float.
+ * Returns error if data can't be converted to string or float.
+ */
+func (i *Influx) querySingleColumn(sql string) (interface{}, error) {
     q := client.Query{
-        Command: cmd,         //"select count(http_size) from \"30days\".http where http_path =~ /api\\/.*\\/tasks\\/show/ and http_code =~ /2../ and time > now() - 3h;",
-        Database: i.options["database"], //"telegraf",
+        Command: sql,
+        Database: i.options["database"],
     }
 
     res, err := i.client.Query(q)
+
     if err != nil {
         return 0, err
     }
@@ -111,10 +116,43 @@ func (i *Influx) query(cmd string) (interface{}, error) {
     return nil, fmt.Errorf("result is not nor json.Number nor string")
 }
 
+
+/*
+ * Executes query and returns first influx result.
+ */
+func (i *Influx) queryMultipleColumns(sql string) (*client.Result, error) {
+    q := client.Query{
+        Command: sql,
+        Database: i.options["database"],
+    }
+
+    res, err := i.client.Query(q)
+
+    if err != nil {
+        return nil, err
+    }
+
+    if res.Error() != nil {
+        return nil, res.Error()
+    }
+
+    //spew.Dump(res.Results)
+
+    return &res.Results[0], nil  // return first result
+}
+
+
+/*
+ * Monitor interface implementation.
+ */
 func (i *Influx) GetName() string {
     return "influx"
 }
 
+/*
+ * Monitor interface implementation.
+ * Implements main checking loop for influx.
+ */
 func (i *Influx) RunWith(notifer *Notifer) {
     interval, err := strconv.Atoi(i.options["interval"])
 
@@ -135,7 +173,7 @@ func (i *Influx) RunWith(notifer *Notifer) {
             sql := i.getSqlForCheck(check)
             log.WithFields(log.Fields{"sql" : strings.TrimSpace(sql)}).Debug("influx: executing sql")
 
-            value, err := i.query(sql)
+            value, err := i.querySingleColumn(sql)
             if err != nil {
                 log.Error("influx: error during query execution: ", err)
                 continue
@@ -156,6 +194,10 @@ func (i *Influx) RunWith(notifer *Notifer) {
     }
 }
 
+
+/*
+ * Prepare trigger's callback for every check.
+ */
 func (i *Influx) initTriggers(interval int) {
     channel := i.options["alert"]
 
@@ -190,8 +232,13 @@ func (i *Influx) initTriggers(interval int) {
 
             msg.ParseLevel(state.Name)
 
-            switch state.Name {
-                case "good": i.notifer.Resolve(_check.GetReportId())
+            if msg.Level != MSG_LVL_GOOD {
+                preview := i.getPreview(&msg, _check)
+                msg.Body += "\n*preview query:*\n" + preview
+            }
+
+            switch msg.Level {
+                case MSG_LVL_GOOD: i.notifer.Resolve(_check.GetReportId())
                 default: i.notifer.Report(_check.GetReportId(), msg)
             }
 
@@ -200,6 +247,58 @@ func (i *Influx) initTriggers(interval int) {
     }
 }
 
+
+/*
+ * Executes and returns formatted output of preview SQL query.
+ * This method will retry 5 times before fail during influx preview querying.
+ */
+func (i *Influx) getPreview(msg *Message, check *Check) string {
+    log.WithFields(log.Fields{"check": check.info}).Info("influx: executing preview query")
+
+    var preview string
+    sql := i.getSqlPreviewForCheck(check)
+
+    for try := 0; ; try++ {
+        res, err := i.queryMultipleColumns(sql)
+
+        if err == nil {
+            ser := res.Series[0]
+
+            columns := strings.Join(ser.Columns, ", ")
+            table := make([]string, 0)
+
+            for nrow, row := range ser.Values {
+                if nrow > 5 {
+                    table = append(table, "... too many lines in output ...")
+                    break
+                }
+
+                values := make([]string, 0)
+                for _, col := range row {
+                    values = append(values, fmt.Sprintf("%s", col))
+                }
+                table = append(table, strings.Join(values, ", "))
+            }
+
+            preview = fmt.Sprintf("```%s\n%s```", columns, strings.Join(table, "\n"))
+            break
+        }
+
+        // TODO: config value for number of retries?
+        if try >= 5 {
+            log.WithFields(log.Fields{ "check": check.info }).Error("influx: executing preview query failed after 5 retries")
+            preview = fmt.Sprintf("Influx error: %s", err)
+            break
+        }
+    }
+
+    return preview
+}
+
+
+/*
+ * Helper for preparing message details field.
+ */
 func (i *Influx) getDetailsForCheck(check *Check) map[string]string {
     tpl, _ := i.templates[check.template]
     str := ""
@@ -212,6 +311,10 @@ func (i *Influx) getDetailsForCheck(check *Check) map[string]string {
     }
 }
 
+
+/*
+ * Finds SQL template for check and renders it.
+ */
 func (i *Influx) getSqlForCheck(check *Check) string {
     tpl, ok := i.templates[check.template]
     if !ok {
@@ -221,6 +324,10 @@ func (i *Influx) getSqlForCheck(check *Check) string {
     return tpl.Format(check.values...)
 }
 
+
+/*
+ * Finds SQL preview template for check and renders it.
+ */
 func (i *Influx) getSqlPreviewForCheck(check *Check) string {
     tpl, ok := i.templates[check.template]
     if !ok {
@@ -230,14 +337,26 @@ func (i *Influx) getSqlPreviewForCheck(check *Check) string {
     return tpl.FormatPreview(check.values...)
 }
 
+
+/*
+ * Renders SQL template with values
+ */
 func (t *Template) Format(values ...string) string {
     return t.formatTemplate(t.body, values)
 }
 
+
+/*
+ * Renders preview SQL template with values
+ */
 func (t *Template) FormatPreview(values ...string) string {
     return t.formatTemplate(t.preview, values)
 }
 
+
+/*
+ * Renders provided template.
+ */
 func (t *Template) formatTemplate(tpl string, values []string) string {
     if len(values) != len(t.args) {
         log.WithFields(log.Fields{ "values" : values, "args" : t.args }).Fatalln("influx: wrong call of template", t.Name, " - wrong amount of arguments")
