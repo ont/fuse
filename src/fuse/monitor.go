@@ -29,7 +29,7 @@ func (f *Fuse) RunWith(notifer *Notifer) {
 	if notifer.AlerterExists("slack") {
 		notifer.Good("slack", Message{
 			From:  "fuse",
-			Title: "Fuse monitor v0.2.0",
+			Title: "Fuse monitor v0.2.1",
 			Body:  "The monitor was restarted",
 		})
 	}
