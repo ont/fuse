@@ -16,8 +16,8 @@ import (
 type Consul struct {
 	Services []*Service
 
-	catalog *api.Catalog // consul api client
-	notifer *Notifer     // notifer to send alters to
+	client  *api.Client // consul api client
+	notifer *Notifer    // notifer to send alters to
 
 	options map[string]string // TODO: replace with explicit declarations (remove parsing actions from Consul)
 }
@@ -55,10 +55,8 @@ func NewConsul(services []*Service, options map[string]string) *Consul {
 		panic(err)
 	}
 
-	catalog := client.Catalog()
-
 	return &Consul{
-		catalog:  catalog,
+		client:   client,
 		Services: services,
 		options:  optionsFull,
 	}
@@ -80,15 +78,7 @@ func (c *Consul) RunWith(notifer *Notifer) {
 
 	for {
 		log.Info("consul: check loop...")
-		services, _, err := c.catalog.Services(nil)
-
-		// TODO: handle multiple error (write to log/slack)
-		if err != nil {
-			log.Error("consul: error during check cycle: ", err)
-		} else {
-			c.checkServices(services)
-		}
-
+		c.checkServices()
 		time.Sleep(time.Duration(interval) * time.Second)
 	}
 }
@@ -106,7 +96,7 @@ func (c *Consul) addTriggers(interval int) {
 
 		service.trigger.callback = func(state *State, lastValue interface{}) error {
 			title := fmt.Sprintf("SERVICE: *%s* in %s state", _service.Name, strings.ToUpper(state.Name))
-			body := fmt.Sprintf("Service \"%s\" is offline more than %d sec.", _service.Name, interval*state.Cycles)
+			body := fmt.Sprintf("Service \"%s\" is %s more than %d sec.", _service.Name, state.Name, interval*state.Cycles)
 
 			msg := Message{
 				IconUrl: "https://pbs.twimg.com/media/C5SO5KRVcAA6Ag6.png", // TODO: replace
@@ -157,21 +147,46 @@ func (c *Consul) defaultTrigger() *Trigger {
 	return trigger
 }
 
-func (c *Consul) checkServices(consulData map[string][]string) {
+func (c *Consul) checkServices() {
 	for _, service := range c.Services {
-		log.WithFields(log.Fields{"service": service.Name}).Debug("consul : checking service")
+		c.checkService(service)
+	}
+}
 
-		found := false
-		for name, _ := range consulData {
-			if name == service.Name {
-				found = true
+func (c *Consul) checkService(service *Service) {
+	log.WithFields(log.Fields{"service": service.Name}).Debug("consul : checking service")
+
+	sinfos, _, err := c.client.Health().Service(
+		service.Name, // name of service
+		"",           // optinal tag for filtering
+		false,        // passingOnly - passing all health checks
+		nil,          // QueryOptions
+	)
+
+	if err != nil {
+		log.WithError(err).WithField("service", service.Name).Error("error during api call to consul for service")
+		return
+	}
+
+	passing := true
+
+	if len(sinfos) == 0 {
+		passing = false // too bad, no services with this name are registered in consul
+	}
+
+Loop:
+	for _, sinfo := range sinfos {
+		for _, check := range sinfo.Checks {
+			if check.Status != "passing" {
+				passing = false
+				break Loop // one of found services doesn't pass health check
 			}
 		}
+	}
 
-		if found {
-			service.trigger.Touch("online")
-		} else {
-			service.trigger.Touch("offline")
-		}
+	if passing {
+		service.trigger.Touch("online")
+	} else {
+		service.trigger.Touch("offline")
 	}
 }
