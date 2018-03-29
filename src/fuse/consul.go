@@ -95,8 +95,15 @@ func (c *Consul) addTriggers(interval int) {
 		_service := service
 
 		service.trigger.callback = func(state *State, lastValue interface{}) error {
+			var alive string
+			if state.Name == "good" {
+				alive = "online"
+			} else {
+				alive = "offline"
+			}
+
 			title := fmt.Sprintf("SERVICE: *%s* in %s state", _service.Name, strings.ToUpper(state.Name))
-			body := fmt.Sprintf("Service \"%s\" is %s more than %d sec.", _service.Name, state.Name, interval*state.Cycles)
+			body := fmt.Sprintf("Service \"%s\" is %s more than %d sec.", _service.Name, alive, interval*state.Cycles)
 
 			msg := Message{
 				IconUrl: "https://pbs.twimg.com/media/C5SO5KRVcAA6Ag6.png", // TODO: replace
