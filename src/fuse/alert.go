@@ -107,6 +107,7 @@ func (n *Notifer) Crit(channels interface{}, msg Message) error {
 
 func (n *Notifer) Start() {
 	for name, alerter := range n.Alerters {
+		name, alerter := name, alerter
 		go func() {
 			log.WithFields(log.Fields{"name": name}).Info("notifer: starting alerter")
 			log.WithFields(log.Fields{"name": name}).Fatalf("notifer: error during start: %s", alerter.Start())

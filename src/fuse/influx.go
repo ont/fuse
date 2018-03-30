@@ -268,6 +268,10 @@ func (i *Influx) getPreview(msg *Message, check *Check) string {
 		res, err := i.queryMultipleColumns(sql)
 
 		if err == nil {
+			if len(res.Series) == 0 {
+				return "```<empty dataset>```"
+			}
+
 			ser := res.Series[0]
 
 			columns := strings.Join(ser.Columns, ", ")
