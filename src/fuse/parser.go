@@ -48,48 +48,48 @@ func getParser() *Parser {
 	}
 
 	parser, _ := NewParser(`
-        CONFIG  ← SECTION+
-        SECTION ← SLACK / TWILIO / CONSUL / INFLUX
+		CONFIG  ← SECTION+
+		SECTION ← SLACK / TWILIO / CONSUL / INFLUX
 
 		# Slack
-        SLACK   ← 'slack' '{' OPTION+ '}'
+		SLACK   ← 'slack' '{' OPTION+ '}'
 
 		# Twilio
-        TWILIO   ← 'twilio' '{' OPTION+ '}'
+		TWILIO   ← 'twilio' '{' OPTION+ '}'
 
-        # Consul
-        CONSUL  ← 'consul' '{' OPTION+ SERVICE+ '}'
-        SERVICE ← 'service' STRING ALERT* TRIGGER?
+		# Consul
+		CONSUL  ← 'consul' '{' OPTION+ SERVICE+ '}'
+		SERVICE ← 'service' STRING ALERT* TRIGGER?
 		ALERT   ← 'alert' '(' < STRING > ')'
 
-        # Influx
-        INFLUX   ← 'influx' '{' OPTION+ TEMPLATE+ 'checks' '{' CHECK+ '}' '}'
-        TEMPLATE ← 'template' FNAME '(' ARGS ')' '{' BODY '}' ('preview' '{' BODY '}')?
-        CHECK    ← FNAME '(' (STRING ',')* STRING ')' 'as' STRING TRIGGER
+		# Influx
+		INFLUX   ← 'influx' '{' OPTION+ TEMPLATE+ 'checks' '{' CHECK+ '}' '}'
+		TEMPLATE ← 'template' FNAME '(' ARGS ')' '{' BODY '}' ('preview' '{' BODY '}')?
+		CHECK    ← FNAME '(' (STRING ',')* STRING ')' 'as' STRING TRIGGER
 
-        # Trigger
-        TRIGGER     ← STATE+
-        STATE       ← FNAME '(' STATE_VALUE ',' INT ('cycles' / 'cycle') ')'
-        STATE_VALUE ← STRING / (COMPARATOR FLOAT)
-        COMPARATOR  ← < '<=' / '>=' / '<' / '>' / '=' >
+		# Trigger
+		TRIGGER     ← STATE+
+		STATE       ← FNAME '(' STATE_VALUE ',' INT ('cycles' / 'cycle') ')'
+		STATE_VALUE ← STRING / (COMPARATOR FLOAT)
+		COMPARATOR  ← < '<=' / '>=' / '<' / '>' / '=' >
 
-        # Basic items
-        OPTION  ←  KEY '=' STRING
-        STRING  ←  '"' < (!'"' .)+ > '"'
+		# Basic items
+		OPTION  ←  KEY '=' STRING
+		STRING  ←  '"' < (!'"' .)+ > '"'
 
-        FNAME   ←  < (![ \n(] .)+ >
-        ARG     ←  < (![ ,)] .)+ >  # any chars except space, ',' or ')'
-        ARGS    ←  (ARG ',')* ARG
-        BODY    ←  < (!'}' .)+ >
+		FNAME   ←  < (![ \n(] .)+ >
+		ARG     ←  < (![ ,)] .)+ >  # any chars except space, ',' or ')'
+		ARGS    ←  (ARG ',')* ARG
+		BODY    ←  < (!'}' .)+ >
 
-        KEY     ←  < (![ =] .)+ >
-        VALUE   ←  < (![ \n] .)+ >
+		KEY     ←  < (![ =] .)+ >
+		VALUE   ←  < (![ \n] .)+ >
 
-        INT     ←  < [0-9]+ >
-        FLOAT   ←  < ('-' / '+')? INT ('.' INT)? >
+		INT     ←  < [0-9]+ >
+		FLOAT   ←  < ('-' / '+')? INT ('.' INT)? >
 
-        %whitespace  ←  [ \t\n]*
-    `)
+		%whitespace  ←  [ \t\n]*
+	`)
 
 	g := parser.Grammar
 
