@@ -53,7 +53,7 @@ func NewConsul(services []*Service, options map[string]string) *Consul {
 
 	// TODO: better exit message (without stacktrace)
 	if err != nil {
-		panic(err)
+		log.Fatal("consul: can't create api client!")
 	}
 
 	return &Consul{

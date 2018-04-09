@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"github.com/davecgh/go-spew/spew"
+	log "github.com/sirupsen/logrus"
 	. "github.com/yhirose/go-peg"
 	"strconv"
 )
@@ -103,12 +104,12 @@ func getParser() *Parser {
 		//spew.Dump(options)
 		channel, ok := options["channel"]
 		if !ok {
-			panic("Slack: 'channel' option is required!")
+			log.Fatal("Slack: 'channel' option is required!")
 		}
 
 		token, ok := options["token"]
 		if !ok {
-			panic("Slack: 'token' option is required!")
+			log.Fatal("Slack: 'token' option is required!")
 		}
 
 		icon := options["icon_url"]
