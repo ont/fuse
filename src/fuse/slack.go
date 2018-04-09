@@ -34,6 +34,10 @@ func NewSlackClient(channel string, token string, iconUrl string) *SlackClient {
 	}
 }
 
+func (s *SlackClient) GetName() string {
+	return "slack"
+}
+
 func (s *SlackClient) Good(msg Message) error {
 	msg.Level = MSG_LVL_GOOD
 	params := s.messageToParams(msg)

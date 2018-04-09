@@ -2,9 +2,9 @@ package main
 
 import (
 	"errors"
-	"strconv"
-	//"github.com/davecgh/go-spew/spew"
+	"github.com/davecgh/go-spew/spew"
 	. "github.com/yhirose/go-peg"
+	"strconv"
 )
 
 type Option struct {
@@ -21,6 +21,11 @@ type ParseResult struct {
 type StateValue struct {
 	operator string
 	value    interface{}
+}
+
+// helper class for parsing
+type OptionalAlert struct {
+	Name string
 }
 
 func Parse(text string) (*ParseResult, error) {
@@ -44,13 +49,18 @@ func getParser() *Parser {
 
 	parser, _ := NewParser(`
         CONFIG  ← SECTION+
-        SECTION ← CONSUL / SLACK / INFLUX
+        SECTION ← SLACK / TWILIO / CONSUL / INFLUX
 
+		# Slack
         SLACK   ← 'slack' '{' OPTION+ '}'
+
+		# Twilio
+        TWILIO   ← 'twilio' '{' OPTION+ '}'
 
         # Consul
         CONSUL  ← 'consul' '{' OPTION+ SERVICE+ '}'
-        SERVICE ← 'service' STRING TRIGGER?
+        SERVICE ← 'service' STRING ALERT* TRIGGER?
+		ALERT   ← 'alert' '(' < STRING > ')'
 
         # Influx
         INFLUX   ← 'influx' '{' OPTION+ TEMPLATE+ 'checks' '{' CHECK+ '}' '}'
@@ -125,12 +135,26 @@ func getParser() *Parser {
 	g["SERVICE"].Action = func(v *Values, d Any) (Any, error) {
 		//spew.Dump("SERVICE", v)
 		service := &Service{
-			Name: v.ToStr(0),
+			Name:   v.ToStr(0),
+			Alerts: make([]string, 0),
 		}
-		if v.Len() > 1 {
-			service.trigger, _ = v.Vs[1].(*Trigger)
+
+		for i := 1; i < v.Len(); i++ {
+			if alert, ok := v.Vs[i].(*OptionalAlert); ok {
+				service.Alerts = append(service.Alerts, alert.Name)
+			}
+
+			if trigger, ok := v.Vs[i].(*Trigger); ok {
+				service.trigger = trigger
+			}
 		}
+
 		return service, nil
+	}
+
+	g["ALERT"].Action = func(v *Values, d Any) (Any, error) {
+		spew.Dump("ALERT", v)
+		return &OptionalAlert{v.ToStr(0)}, nil
 	}
 
 	g["TRIGGER"].Action = func(v *Values, d Any) (Any, error) {

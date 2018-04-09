@@ -24,6 +24,7 @@ type Consul struct {
 
 type Service struct {
 	Name    string
+	Alerts  []string
 	trigger *Trigger
 }
 
@@ -84,15 +85,15 @@ func (c *Consul) RunWith(notifer *Notifer) {
 }
 
 func (c *Consul) addTriggers(interval int) {
-	channel := c.options["alert"]
+	mainAlert := c.options["alert"]
 
 	for _, service := range c.Services {
 		if service.trigger == nil {
 			service.trigger = c.defaultTrigger()
 		}
 
-		// lock var for closure function
-		_service := service
+		// create local var for closure function
+		service := service
 
 		service.trigger.callback = func(state *State, lastValue interface{}) error {
 			var alive string
@@ -102,8 +103,8 @@ func (c *Consul) addTriggers(interval int) {
 				alive = "offline"
 			}
 
-			title := fmt.Sprintf("SERVICE: *%s* in %s state", _service.Name, strings.ToUpper(state.Name))
-			body := fmt.Sprintf("Service \"%s\" is %s more than %d sec.", _service.Name, alive, interval*state.Cycles)
+			title := fmt.Sprintf("SERVICE: *%s* in %s state", service.Name, strings.ToUpper(state.Name))
+			body := fmt.Sprintf("Service \"%s\" is %s more than %d sec.", service.Name, alive, interval*state.Cycles)
 
 			msg := Message{
 				IconUrl: "https://pbs.twimg.com/media/C5SO5KRVcAA6Ag6.png", // TODO: replace
@@ -116,12 +117,18 @@ func (c *Consul) addTriggers(interval int) {
 
 			switch state.Name {
 			case "good":
-				c.notifer.Resolve(_service.GetReportId())
+				c.notifer.Resolve(service.GetReportId())
 			default:
-				c.notifer.Report(_service.GetReportId(), msg)
+				c.notifer.Report(service.GetReportId(), msg)
 			}
 
-			return c.notifer.Notify(state.Name, channel, msg)
+			// always send notification to main alert
+			if err := c.notifer.Notify(state.Name, mainAlert, msg); err != nil {
+				return err
+			}
+
+			// also send alert to optional service alerts
+			return c.notifer.Notify(state.Name, service.Alerts, msg)
 
 		}
 	}

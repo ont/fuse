@@ -1,6 +1,10 @@
 package main
 
-import log "github.com/sirupsen/logrus"
+import (
+	"fmt"
+
+	log "github.com/sirupsen/logrus"
+)
 
 type Notifer struct {
 	Alerters map[string]Alerter
@@ -30,6 +34,8 @@ type Message struct {
 }
 
 type Alerter interface {
+	GetName() string
+
 	Good(msg Message) error
 	Warn(msg Message) error
 	Crit(msg Message) error
@@ -64,42 +70,45 @@ func (n *Notifer) Notify(level string, channels interface{}, msg Message) error 
 	case "crit":
 		return n.Crit(channels, msg)
 	default:
-		log.WithFields(log.Fields{"level": level}).Warn("alert: unknown level, sending as warn")
+		log.WithField("level", level).Warn("alert: unknown level, sending as warn")
 		return n.Warn(channels, msg)
 	}
 }
 
 func (n *Notifer) Good(channels interface{}, msg Message) error {
-	return unpackChannels(channels, func(channel string) error {
-		log.WithFields(log.Fields{"channel": channel}).Info("alert: send Good message")
-		log.WithFields(log.Fields{"msg": msg}).Debug("alert: message")
-		err := n.Alerters[channel].Good(msg)
+	return n.notifyOneOrMany(channels, func(alerter Alerter) error {
+		log.WithField("alerter", alerter.GetName()).Info("alert: send Good message")
+		log.WithField("msg", msg).Debug("alert: message")
+
+		err := alerter.Good(msg)
 		if err != nil {
-			log.Error("alert: error during sending -", err)
+			log.WithError(err).Error("alert: error during sending")
 		}
 		return err
 	})
 }
 
 func (n *Notifer) Warn(channels interface{}, msg Message) error {
-	return unpackChannels(channels, func(channel string) error {
-		log.WithFields(log.Fields{"channel": channel}).Info("alert: send Warn message")
-		log.WithFields(log.Fields{"msg": msg}).Debug("alert: message")
-		err := n.Alerters[channel].Warn(msg)
+	return n.notifyOneOrMany(channels, func(alerter Alerter) error {
+		log.WithField("channel", alerter.GetName()).Info("alert: send Warn message")
+		log.WithField("msg", msg).Debug("alert: message")
+
+		err := alerter.Warn(msg)
 		if err != nil {
-			log.Error("alert: error during sending -", err)
+			log.WithError(err).Error("alert: error during sending")
 		}
 		return err
 	})
 }
 
 func (n *Notifer) Crit(channels interface{}, msg Message) error {
-	return unpackChannels(channels, func(channel string) error {
-		log.WithFields(log.Fields{"channel": channel}).Info("alert: send Crit message")
-		log.WithFields(log.Fields{"msg": msg}).Debug("alert: message")
-		err := n.Alerters[channel].Crit(msg)
+	return n.notifyOneOrMany(channels, func(alerter Alerter) error {
+		log.WithField("channel", alerter.GetName()).Info("alert: send Crit message")
+		log.WithField("msg", msg).Debug("alert: message")
+
+		err := alerter.Crit(msg)
 		if err != nil {
-			log.Error("alert: error during sending -", err)
+			log.WithError(err).Error("alert: error during sending")
 		}
 		return err
 	})
@@ -109,8 +118,8 @@ func (n *Notifer) Start() {
 	for name, alerter := range n.Alerters {
 		name, alerter := name, alerter
 		go func() {
-			log.WithFields(log.Fields{"name": name}).Info("notifer: starting alerter")
-			log.WithFields(log.Fields{"name": name}).Fatalf("notifer: error during start: %s", alerter.Start())
+			log.WithField("name", name).Info("notifer: starting alerter")
+			log.WithField("name", name).Fatalf("notifer: error during start: %s", alerter.Start())
 		}()
 	}
 }
@@ -118,7 +127,7 @@ func (n *Notifer) Start() {
 func (n *Notifer) Report(reportId string, msg Message) {
 	for name, alerter := range n.Alerters {
 		if err := alerter.Report(reportId, msg); err != nil {
-			log.WithFields(log.Fields{"alerter": name}).Error("notifer: error during sending report to alerter: ", err)
+			log.WithField("alerter", name).Error("notifer: error during sending report to alerter: ", err)
 		}
 	}
 }
@@ -126,31 +135,38 @@ func (n *Notifer) Report(reportId string, msg Message) {
 func (n *Notifer) Resolve(reportId string) {
 	for name, alerter := range n.Alerters {
 		if err := alerter.Resolve(reportId); err != nil {
-			log.WithFields(log.Fields{"alerter": name}).Error("notifer: error during resolve report in alerter: ", err)
+			log.WithField("alerter", name).Error("notifer: error during resolve report in alerter: ", err)
 		}
 	}
 }
 
-func unpackChannels(channels interface{}, callback func(string) error) error {
+func (n *Notifer) notifyOneOrMany(channels interface{}, callback func(Alerter) error) error {
 	var resErr error
 
 	if channels, ok := channels.([]string); ok {
 		for _, channel := range channels {
-			err := callback(channel)
-			if err != nil {
-				resErr = err
+			if err := n.notifyChannel(channel, callback); err != nil {
+				resErr = err // don't interrupt other channels
 			}
 		}
 	}
 
 	if channel, ok := channels.(string); ok {
-		err := callback(channel)
-		if err != nil {
-			resErr = err
+		if err := n.notifyChannel(channel, callback); err != nil {
+			resErr = err // don't interrupt other channels
 		}
 	}
 
 	return resErr
+}
+
+func (n *Notifer) notifyChannel(channel string, callback func(Alerter) error) error {
+	alerter, ok := n.Alerters[channel]
+	if !ok {
+		return fmt.Errorf("channel '%s' not found")
+	}
+
+	return callback(alerter)
 }
 
 func (m *Message) ParseLevel(level string) {
