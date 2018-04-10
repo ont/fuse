@@ -33,7 +33,7 @@ type OptionalAlert struct {
 
 func Parse(text string) (*ParseResult, error) {
 	// remove any comments from config
-	re := regexp.MustCompile(`(?m)#.*$`)
+	re := regexp.MustCompile(`(?m)^\s*#.*$`)
 	text = re.ReplaceAllString(text, "")
 
 	val, err := getParser().ParseAndGetValue(text, nil)
