@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"regexp"
 	"strconv"
 
 	"github.com/davecgh/go-spew/spew"
@@ -31,6 +32,10 @@ type OptionalAlert struct {
 }
 
 func Parse(text string) (*ParseResult, error) {
+	// remove any comments from config
+	re := regexp.MustCompile(`(?m)#.*$`)
+	text = re.ReplaceAllString(text, "")
+
 	val, err := getParser().ParseAndGetValue(text, nil)
 	if err != nil {
 		return nil, err
