@@ -2,10 +2,11 @@ package main
 
 import (
 	"errors"
+	"strconv"
+
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 	. "github.com/yhirose/go-peg"
-	"strconv"
 )
 
 type Option struct {
@@ -119,6 +120,41 @@ func getParser() *Parser {
 		return nil, nil
 	}
 
+	g["TWILIO"].Action = func(v *Values, d Any) (Any, error) {
+		options := parseOptions(v)
+
+		//spew.Dump(options)
+		phoneTo, ok := options["phone_to"]
+		if !ok {
+			log.Fatal("Twilio: 'phone_to' option is required!")
+		}
+
+		phoneFrom, ok := options["phone_from"]
+		if !ok {
+			log.Fatal("Twilio: 'phone_from' option is required!")
+		}
+
+		sid, ok := options["sid"]
+		if !ok {
+			log.Fatal("Twilio: 'sid' option is required!")
+		}
+
+		token, ok := options["token"]
+		if !ok {
+			log.Fatal("Twilio: 'token' option is required!")
+		}
+
+		twimlUrl, ok := options["twiml_url"]
+		if !ok {
+			log.Fatal("Twilio: 'twiml_url' option is required!")
+		}
+
+		spew.Dump("CREATING TWILIO:", phoneTo, phoneFrom, token, sid, twimlUrl)
+		result.Alerters["twilio"] = NewTwilioClient(phoneTo, phoneFrom, token, sid, twimlUrl)
+
+		return nil, nil
+	}
+
 	g["CONSUL"].Action = func(v *Values, d Any) (Any, error) {
 		options := parseOptions(v)
 
@@ -154,7 +190,6 @@ func getParser() *Parser {
 	}
 
 	g["ALERT"].Action = func(v *Values, d Any) (Any, error) {
-		spew.Dump("ALERT", v)
 		return &OptionalAlert{v.ToStr(0)}, nil
 	}
 

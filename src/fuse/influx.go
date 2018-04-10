@@ -244,7 +244,9 @@ func (i *Influx) initTriggers(interval int) {
 				i.notifer.Report(_check.GetReportId(), msg)
 			}
 
-			return i.notifer.Notify(state.Name, channel, msg)
+			i.notifer.Notify(state.Name, channel, msg)
+
+			return nil
 		}
 	}
 }

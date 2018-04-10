@@ -122,14 +122,18 @@ func (c *Consul) addTriggers(interval int) {
 				c.notifer.Report(service.GetReportId(), msg)
 			}
 
+			//
+			// TODO: WARN: bad design of Trigger.alterted = (true|false)
+			// If one of alerter fails then
+			//
+
 			// always send notification to main alert
-			if err := c.notifer.Notify(state.Name, mainAlert, msg); err != nil {
-				return err
-			}
+			c.notifer.Notify(state.Name, mainAlert, msg)
 
 			// also send alert to optional service alerts
-			return c.notifer.Notify(state.Name, service.Alerts, msg)
+			c.notifer.Notify(state.Name, service.Alerts, msg)
 
+			return nil
 		}
 	}
 }

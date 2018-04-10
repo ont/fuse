@@ -6,9 +6,8 @@ import (
 )
 
 type Trigger struct {
-	state   *State   // current active state
-	alerted bool     // true - if current state was successfully alerted via callback function
-	states  []*State // set of states to check
+	state  *State   // current active state
+	states []*State // set of states to check
 
 	callback func(state *State, lastValue interface{}) error // callback to call after changing the state
 }
@@ -37,7 +36,6 @@ func (t *Trigger) AddState(state *State) {
 	// set first state as active
 	if len(t.states) == 1 {
 		t.state = state
-		t.alerted = true
 	}
 }
 
@@ -64,7 +62,6 @@ func (t *Trigger) Touch(value interface{}) {
 	if t.state != newState {
 		t.state = newState
 		log.WithFields(log.Fields{"state": newState.Name}).Debug("trigger: activating new state")
-		t.alerted = false
 
 		// reset all states after switching to new active state
 		for _, state := range t.states {
@@ -72,17 +69,14 @@ func (t *Trigger) Touch(value interface{}) {
 				state.Reset()
 			}
 		}
-	}
 
-	// try to resend on every touch if failed
-	if !t.alerted {
+		// inform via callback function
 		err := t.callback(t.state, value)
 		if err != nil {
 			log.WithFields(log.Fields{"err": err}).Debug("trigger: error during calling callback")
-		} else {
-			t.alerted = true
 		}
 	}
+
 }
 
 func (t *Trigger) LogStates() {
