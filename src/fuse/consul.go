@@ -122,11 +122,6 @@ func (c *Consul) addTriggers(interval int) {
 				c.notifer.Report(service.GetReportId(), msg)
 			}
 
-			//
-			// TODO: WARN: bad design of Trigger.alterted = (true|false)
-			// If one of alerter fails then
-			//
-
 			// always send notification to main alert
 			c.notifer.Notify(state.Name, mainAlert, msg)
 
