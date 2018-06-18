@@ -5,6 +5,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const STATE_CRIT = "crit"
+
 type Trigger struct {
 	state  *State   // current active state
 	states []*State // set of states to check
@@ -60,23 +62,61 @@ func (t *Trigger) Touch(value interface{}) {
 	t.LogStates()
 
 	if t.state != newState {
-		t.state = newState
-		log.WithFields(log.Fields{"state": newState.Name}).Debug("trigger: activating new state")
+		t.activateState(newState, value)
+	}
 
-		// reset all states after switching to new active state
-		for _, state := range t.states {
-			if state != t.state {
-				state.Reset()
-			}
-		}
+}
 
-		// inform via callback function
-		err := t.callback(t.state, value)
-		if err != nil {
-			log.WithFields(log.Fields{"err": err}).Debug("trigger: error during calling callback")
+/*
+ * Fail function immediately switch trigger to STATE_CRIT state
+ */
+func (t *Trigger) Fail(value interface{}) {
+	log.WithField("value", value).Debug("trigger: failing trigger with value")
+
+	var critState *State
+	for _, state := range t.states {
+		if state.Name == STATE_CRIT {
+			critState = state
 		}
 	}
 
+	if critState == nil {
+		log.Error("trigger: can't find STATE_CRIT state inside trigger")
+		return
+	}
+
+	for _, state := range t.states {
+		if state == critState {
+			t.activateState(state, value) // switch trigger to crit state
+		} else {
+			state.Reset() // reset all counters on non-crit states
+		}
+	}
+
+	t.LogStates()
+}
+
+func (t *Trigger) activateState(state *State, value interface{}) {
+	if t.state == state {
+		log.WithFields(log.Fields{"state": state.Name}).Debug("trigger: state already activated")
+		return // nothing to trigger
+	}
+
+	t.state = state
+	log.WithFields(log.Fields{"state": state.Name}).Debug("trigger: activating new state")
+
+	// reset all states after switching to new active state
+	for _, state := range t.states {
+		if state != t.state {
+			state.Reset()
+		}
+	}
+
+	// inform via callback function
+	err := t.callback(t.state, value)
+	if err != nil {
+		log.WithFields(log.Fields{"err": err}).Debug("trigger: error during calling callback")
+	}
 }
 
 func (t *Trigger) LogStates() {
@@ -84,7 +124,7 @@ func (t *Trigger) LogStates() {
 	for _, state := range t.states {
 		msg += fmt.Sprintf("%s:%d(%d) ", state.Name, state.counter, state.Cycles)
 	}
-	log.WithFields(log.Fields{"states": msg}).Debug("trigger: states after touching")
+	log.WithFields(log.Fields{"states": msg}).Debug("trigger: current trigger states")
 }
 
 /*

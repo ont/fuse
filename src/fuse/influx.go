@@ -179,8 +179,8 @@ func (i *Influx) RunWith(notifer *Notifer) {
 			log.WithFields(log.Fields{"value": value}).Debug("influx: sending value to trigger")
 
 			if value == nil {
-				log.Debug("influx: touching trigger with '0' value instead of 'nil'")
-				check.trigger.Touch(0)
+				check.trigger.Fail("<nil value>")
+				log.Debug("influx: failing trigger due to 'nil' value")
 				continue
 			}
 

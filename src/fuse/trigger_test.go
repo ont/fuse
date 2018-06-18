@@ -192,3 +192,50 @@ func TestTrigger(t *testing.T) {
 
 	log.SetLevel(log.InfoLevel)
 }
+
+func TestTriggerFail(t *testing.T) {
+	var callCnt int
+
+	log.SetLevel(log.DebugLevel)
+
+	trigger := NewTrigger(func(state *State, value interface{}) error {
+		callCnt++
+		return nil
+	})
+
+	trigger.Fail("<test value>")
+
+	assert.Equal(t, 0, callCnt, "callback must not be called (no STATE_CRIT state)")
+
+	trigger.AddState(&State{
+		Name:     "good",
+		Cycles:   2,
+		operator: "=",
+		value:    "online",
+	})
+
+	trigger.AddState(&State{
+		Name:     "crit",
+		Cycles:   5,
+		operator: "=",
+		value:    "offline",
+	})
+
+	trigger.Fail("<test value>")
+	trigger.Fail("<test value>")
+
+	assert.Equal(t, 1, callCnt, "callback must be triggered only once")
+
+	trigger.Touch("online")
+	assert.Equal(t, "crit", trigger.state.Name, "Trigger's state must be 'crit'")
+
+	trigger.Fail("<test value>")
+	assert.Equal(t, "crit", trigger.state.Name, "Trigger's state must be 'crit'")
+
+	trigger.Touch("online")
+	assert.Equal(t, "crit", trigger.state.Name, "Trigger's state must be 'crit'")
+
+	trigger.Touch("online")
+	assert.Equal(t, "good", trigger.state.Name, "Trigger's state must be 'good'")
+	assert.Equal(t, 2, callCnt, "callback must be trigger only twice (fail + good)")
+}
