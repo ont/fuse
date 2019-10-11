@@ -14,6 +14,8 @@ type Fuse struct {
 type Monitor interface {
 	GetName() string
 	RunWith(notifer *domain.Notifer)
+
+	LogInfo()
 }
 
 func NewFuse() *Fuse {
@@ -38,9 +40,7 @@ func (f *Fuse) RunWith(notifer *domain.Notifer) {
 		})
 	}
 
-	if err := notifer.Start(); err != nil {
-		log.WithError(err).Fatalf("monitor: can't start notifier")
-	}
+	notifer.Start()
 
 	wg.Add(len(f.Monitors))
 	for _, monitor := range f.Monitors {

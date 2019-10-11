@@ -205,3 +205,10 @@ Loop:
 		service.Trigger.Touch("offline")
 	}
 }
+
+func (c *Consul) LogInfo() {
+	log.WithField("monitor", c.GetName()).WithField("amount", len(c.Services)).Info("amount of services")
+	for _, service := range c.Services {
+		log.WithField("monitor", c.GetName()).WithField("service", service.Name).Info("service")
+	}
+}

@@ -377,3 +377,16 @@ func (t *Template) formatTemplate(tpl string, values []string) string {
 
 	return strings.TrimSpace(res)
 }
+
+func (i *Influx) LogInfo() {
+	log.WithField("monitor", i.GetName()).WithField("amount", len(i.templates)).Info("amount of templates")
+	log.WithField("monitor", i.GetName()).WithField("amount", len(i.checks)).Info("amount of checks")
+
+	for _, tpl := range i.templates {
+		log.WithField("monitor", i.GetName()).WithField("template", tpl.Name).Info("template")
+	}
+
+	for _, chk := range i.checks {
+		log.WithField("monitor", i.GetName()).WithField("template", chk.Template).WithField("info", chk.Info).Info("check")
+	}
+}

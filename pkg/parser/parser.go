@@ -48,10 +48,29 @@ func Parse(text string) (*ParseResult, error) {
 	}
 
 	if val, ok := val.(*ParseResult); ok {
+		logConfig(val)
 		return val, nil
 	}
 
 	return nil, errors.New("Error during parsing")
+}
+
+func logConfig(conf *ParseResult) {
+	names := []string{}
+	for k, _ := range conf.Alerters {
+		names = append(names, k)
+	}
+	log.WithField("alerters", names).Info("alerters")
+
+	names = []string{}
+	for k, _ := range conf.Monitors {
+		names = append(names, k)
+	}
+	log.WithField("monitors", names).Info("monitors")
+
+	for _, monitor := range conf.Monitors {
+		monitor.LogInfo()
+	}
 }
 
 func getParser() *Parser {

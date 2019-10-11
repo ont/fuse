@@ -114,14 +114,19 @@ func (n *Notifer) Crit(channels interface{}, msg Message) {
 	})
 }
 
-func (n *Notifer) Start() error {
+func (n *Notifer) Start() {
 	for name, alerter := range n.Alerters {
 		name, alerter := name, alerter
 		log.WithField("name", name).Info("notifer: configuring alerter")
 		alerter.ConfigureHTTP()
 	}
 
-	return http.ListenAndServe(":7777", nil) // TODO: configurable port?
+	// TODO: configurable port?
+	go func() {
+		if err := http.ListenAndServe(":7777", nil); err != nil {
+			log.WithError(err).Fatal("notifer: can't start http listener")
+		}
+	}()
 }
 
 func (n *Notifer) Report(reportId string, msg Message) {
