@@ -4,11 +4,8 @@ pipeline:
   build:
     image: golang
     commands:
-      - export GOPATH=$(pwd)
-      - cd src/fuse
-      - go get -t
-      - go test
-      - go build
+      - go test fuse/pkg/domain
+      - go build -o bin/fuse cmd/fuse/main.go
 
 
   publish-docker:

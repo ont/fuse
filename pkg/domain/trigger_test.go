@@ -13,7 +13,7 @@ func TestStateMatrixEq(t *testing.T) {
 		for tvalue, result := range tests {
 			s := State{
 				Cycles: 1,
-				value:  svalue,
+				Value:  svalue,
 			}
 			s.Touch(tvalue, true)
 			assert.Equalf(t, result, s.IsReady(), "Wrong state %#v for comparision %s == %s", s.IsReady(), svalue, tvalue)
@@ -30,8 +30,8 @@ func TestStateMatrixLt(t *testing.T) {
 		for tvalue, result := range tests {
 			s := State{
 				Cycles:   1,
-				value:    svalue,
-				operator: "<",
+				Value:    svalue,
+				Operator: "<",
 			}
 			s.Touch(tvalue, true)
 			assert.Equalf(t, result, s.IsReady(), "Wrong state %#v for comparision %s < %s", s.IsReady(), svalue, tvalue)
@@ -48,8 +48,8 @@ func TestStateMatrixGt(t *testing.T) {
 		for tvalue, result := range tests {
 			s := State{
 				Cycles:   1,
-				value:    svalue,
-				operator: ">",
+				Value:    svalue,
+				Operator: ">",
 			}
 			s.Touch(tvalue, true)
 			assert.Equalf(t, result, s.IsReady(), "Wrong state %#v for comparision %s > %s", s.IsReady(), svalue, tvalue)
@@ -66,8 +66,8 @@ func TestStateMatrixLte(t *testing.T) {
 		for tvalue, result := range tests {
 			s := State{
 				Cycles:   1,
-				value:    svalue,
-				operator: "<=",
+				Value:    svalue,
+				Operator: "<=",
 			}
 			s.Touch(tvalue, true)
 			assert.Equalf(t, result, s.IsReady(), "Wrong state %#v for comparision %s <= %s", s.IsReady(), svalue, tvalue)
@@ -84,8 +84,8 @@ func TestStateMatrixGte(t *testing.T) {
 		for tvalue, result := range tests {
 			s := State{
 				Cycles:   1,
-				value:    svalue,
-				operator: ">=",
+				Value:    svalue,
+				Operator: ">=",
 			}
 			s.Touch(tvalue, true)
 			assert.Equalf(t, result, s.IsReady(), "Wrong state %#v for comparision %s >= %s", s.IsReady(), svalue, tvalue)
@@ -96,8 +96,8 @@ func TestStateMatrixGte(t *testing.T) {
 func TestStateCounter(t *testing.T) {
 	s := State{
 		Cycles:   3,
-		value:    float64(123),
-		operator: "<",
+		Value:    float64(123),
+		Operator: "<",
 	}
 	s.Touch(0, true)
 	assert.False(t, s.IsReady(), "Must be inactive")
@@ -129,22 +129,22 @@ func TestTrigger(t *testing.T) {
 	trigger.AddState(&State{
 		Name:     "good",
 		Cycles:   2,
-		operator: "=",
-		value:    "online",
+		Operator: "=",
+		Value:    "online",
 	})
 
 	trigger.AddState(&State{
 		Name:     "warn",
 		Cycles:   2,
-		operator: "=",
-		value:    "offline",
+		Operator: "=",
+		Value:    "offline",
 	})
 
 	trigger.AddState(&State{
 		Name:     "crit",
 		Cycles:   5,
-		operator: "=",
-		value:    "offline",
+		Operator: "=",
+		Value:    "offline",
 	})
 
 	log.Info("-----------------------")
@@ -210,15 +210,15 @@ func TestTriggerFail(t *testing.T) {
 	trigger.AddState(&State{
 		Name:     "good",
 		Cycles:   2,
-		operator: "=",
-		value:    "online",
+		Operator: "=",
+		Value:    "online",
 	})
 
 	trigger.AddState(&State{
 		Name:     "crit",
 		Cycles:   5,
-		operator: "=",
-		value:    "offline",
+		Operator: "=",
+		Value:    "offline",
 	})
 
 	trigger.Fail("<test value>")
