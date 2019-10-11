@@ -12,7 +12,6 @@ import (
 	"fuse/pkg/slack"
 	"fuse/pkg/twilio"
 
-	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 	. "github.com/yhirose/go-peg"
 )
@@ -161,7 +160,7 @@ func getParser() *Parser {
 			log.Fatal("Twilio: 'twiml_url' option is required!")
 		}
 
-		spew.Dump("CREATING TWILIO:", phoneTo, phoneFrom, token, sid, twimlUrl)
+		//spew.Dump("CREATING TWILIO:", phoneTo, phoneFrom, token, sid, twimlUrl)
 		result.Alerters["twilio"] = twilio.NewTwilioClient(phoneTo, phoneFrom, token, sid, twimlUrl)
 
 		return nil, nil
