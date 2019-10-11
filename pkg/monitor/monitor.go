@@ -35,7 +35,7 @@ func (f *Fuse) RunWith(notifer *domain.Notifer) {
 	if notifer.AlerterExists("slack") {
 		notifer.Good("slack", domain.Message{
 			From:  "fuse",
-			Title: "Fuse monitor v0.3.4",
+			Title: "Fuse monitor v0.3.5",
 			Body:  "The monitor was restarted",
 		})
 	}
