@@ -4,6 +4,7 @@ go 1.12
 
 require (
 	github.com/davecgh/go-spew v1.1.1
+	github.com/elazarl/goproxy v0.0.0-20191011121108-aa519ddbe484 // indirect
 	github.com/hashicorp/consul/api v1.2.0
 	github.com/influxdata/influxdb v1.7.8
 	github.com/nlopes/slack v0.6.0

@@ -1,6 +1,8 @@
 package domain
 
 import (
+	"net/http"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -41,7 +43,7 @@ type Alerter interface {
 	Report(reportId string, msg Message) error
 	Resolve(reportId string) error
 
-	Start() error
+	ConfigureHTTP()
 }
 
 func NewNotifer() *Notifer {
@@ -112,17 +114,14 @@ func (n *Notifer) Crit(channels interface{}, msg Message) {
 	})
 }
 
-func (n *Notifer) Start() {
+func (n *Notifer) Start() error {
 	for name, alerter := range n.Alerters {
 		name, alerter := name, alerter
-		go func() {
-			log.WithField("name", name).Info("notifer: starting alerter")
-
-			if err := alerter.Start(); err != nil {
-				log.WithField("name", name).WithError(err).Fatalf("notifer: error during alerter startup")
-			}
-		}()
+		log.WithField("name", name).Info("notifer: configuring alerter")
+		alerter.ConfigureHTTP()
 	}
+
+	return http.ListenAndServe(":7777", nil) // TODO: configurable port?
 }
 
 func (n *Notifer) Report(reportId string, msg Message) {

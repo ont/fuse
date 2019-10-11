@@ -33,12 +33,14 @@ func (f *Fuse) RunWith(notifer *domain.Notifer) {
 	if notifer.AlerterExists("slack") {
 		notifer.Good("slack", domain.Message{
 			From:  "fuse",
-			Title: "Fuse monitor v0.3.2",
+			Title: "Fuse monitor v0.3.4",
 			Body:  "The monitor was restarted",
 		})
 	}
 
-	notifer.Start()
+	if err := notifer.Start(); err != nil {
+		log.WithError(err).Fatalf("monitor: can't start notifier")
+	}
 
 	wg.Add(len(f.Monitors))
 	for _, monitor := range f.Monitors {

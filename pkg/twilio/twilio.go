@@ -44,7 +44,7 @@ func NewTwilioClient(phoneTo, phoneFrom, token, sid, twimlUrl string) *TwilioCli
 /*
  * Implements HTTP callback server for slash-command in slack.
  */
-func (t *TwilioClient) Start() error {
+func (t *TwilioClient) ConfigureHTTP() {
 	twimlUrlParsed, err := url.Parse(t.twimlUrl)
 	if err != nil {
 		log.WithField("url", t.twimlUrl).Fatal("twilio: can't parse twimlUrl")
@@ -60,8 +60,6 @@ func (t *TwilioClient) Start() error {
 		w.Header().Set("Content-Type", "application/xml")
 		w.Write(xml)
 	})
-
-	return http.ListenAndServe(":7778", nil) // TODO: configurable port?
 }
 
 func (t *TwilioClient) generateTwiML() ([]byte, error) {

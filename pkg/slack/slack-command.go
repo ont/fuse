@@ -12,7 +12,8 @@ import (
 /*
  * Implements HTTP callback server for slash-command in slack.
  */
-func (s *SlackClient) Start() error {
+func (s *SlackClient) ConfigureHTTP() {
+	// TODO: configure http via DI; replace http with iris?
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		cmd := r.FormValue("text")
 
@@ -22,8 +23,6 @@ func (s *SlackClient) Start() error {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(params)
 	})
-
-	return http.ListenAndServe(":7777", nil) // TODO: configurable port?
 }
 
 func (s *SlackClient) ProcessCmd(cmd string) *slack.Msg {
