@@ -1,4 +1,4 @@
-package main
+package twilio
 
 import (
 	"encoding/xml"
@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"fuse/pkg/domain"
 
 	"github.com/parnurzeal/gorequest"
 	log "github.com/sirupsen/logrus"
@@ -79,7 +81,7 @@ func (t *TwilioClient) GetName() string {
 	return "twilio"
 }
 
-func (t *TwilioClient) Crit(msg Message) error {
+func (t *TwilioClient) Crit(msg domain.Message) error {
 	// Build out the data for our message
 	request := map[string]interface{}{
 		"To":   t.phoneTo,
@@ -114,15 +116,15 @@ func (t *TwilioClient) Crit(msg Message) error {
 	return nil
 }
 
-func (t *TwilioClient) Good(msg Message) error {
+func (t *TwilioClient) Good(msg domain.Message) error {
 	return nil
 }
 
-func (t *TwilioClient) Warn(msg Message) error {
+func (t *TwilioClient) Warn(msg domain.Message) error {
 	return nil
 }
 
-func (t *TwilioClient) Report(reportId string, msg Message) error {
+func (t *TwilioClient) Report(reportId string, msg domain.Message) error {
 	return nil
 }
 

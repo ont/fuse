@@ -1,9 +1,16 @@
-package main
+package parser
 
 import (
 	"errors"
 	"regexp"
 	"strconv"
+
+	"fuse/pkg/consul"
+	"fuse/pkg/domain"
+	"fuse/pkg/influx"
+	"fuse/pkg/monitor"
+	"fuse/pkg/slack"
+	"fuse/pkg/twilio"
 
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
@@ -16,8 +23,8 @@ type Option struct {
 }
 
 type ParseResult struct {
-	Alerters map[string]Alerter
-	Monitors map[string]Monitor
+	Alerters map[string]domain.Alerter
+	Monitors map[string]monitor.Monitor
 }
 
 // helper class for parsing
@@ -50,8 +57,8 @@ func Parse(text string) (*ParseResult, error) {
 
 func getParser() *Parser {
 	result := &ParseResult{
-		make(map[string]Alerter),
-		make(map[string]Monitor),
+		make(map[string]domain.Alerter),
+		make(map[string]monitor.Monitor),
 	}
 
 	parser, _ := NewParser(`
@@ -121,7 +128,7 @@ func getParser() *Parser {
 		icon := options["icon_url"]
 
 		//spew.Dump("CREATING SLACK:", channel, token, icon)
-		result.Alerters["slack"] = NewSlackClient(channel, token, icon)
+		result.Alerters["slack"] = slack.NewSlackClient(channel, token, icon)
 		return nil, nil
 	}
 
@@ -155,7 +162,7 @@ func getParser() *Parser {
 		}
 
 		spew.Dump("CREATING TWILIO:", phoneTo, phoneFrom, token, sid, twimlUrl)
-		result.Alerters["twilio"] = NewTwilioClient(phoneTo, phoneFrom, token, sid, twimlUrl)
+		result.Alerters["twilio"] = twilio.NewTwilioClient(phoneTo, phoneFrom, token, sid, twimlUrl)
 
 		return nil, nil
 	}
@@ -163,20 +170,20 @@ func getParser() *Parser {
 	g["CONSUL"].Action = func(v *Values, d Any) (Any, error) {
 		options := parseOptions(v)
 
-		services := make([]*Service, 0, v.Len())
+		services := make([]*consul.Service, 0, v.Len())
 		for _, any := range v.Vs {
-			if service, ok := any.(*Service); ok {
+			if service, ok := any.(*consul.Service); ok {
 				services = append(services, service)
 			}
 		}
 
-		result.Monitors["consul"] = NewConsul(services, options)
+		result.Monitors["consul"] = consul.NewConsul(services, options)
 		return nil, nil
 	}
 
 	g["SERVICE"].Action = func(v *Values, d Any) (Any, error) {
 		//spew.Dump("SERVICE", v)
-		service := &Service{
+		service := &consul.Service{
 			Name:   v.ToStr(0),
 			Alerts: make([]string, 0),
 		}
@@ -186,8 +193,8 @@ func getParser() *Parser {
 				service.Alerts = append(service.Alerts, alert.Name)
 			}
 
-			if trigger, ok := v.Vs[i].(*Trigger); ok {
-				service.trigger = trigger
+			if trigger, ok := v.Vs[i].(*domain.Trigger); ok {
+				service.Trigger = trigger
 			}
 		}
 
@@ -199,10 +206,10 @@ func getParser() *Parser {
 	}
 
 	g["TRIGGER"].Action = func(v *Values, d Any) (Any, error) {
-		t := NewTrigger(nil)
+		t := domain.NewTrigger(nil)
 
 		for _, any := range v.Vs {
-			if state, ok := any.(*State); ok {
+			if state, ok := any.(*domain.State); ok {
 				t.AddState(state)
 			}
 		}
@@ -213,10 +220,10 @@ func getParser() *Parser {
 	g["STATE"].Action = func(v *Values, d Any) (Any, error) {
 		//spew.Dump("STATE", v)
 		state_value, _ := v.Vs[1].(*StateValue)
-		return &State{
+		return &domain.State{
 			Name:     v.ToStr(0),
-			operator: state_value.operator,
-			value:    state_value.value,
+			Operator: state_value.operator,
+			Value:    state_value.value,
 			Cycles:   v.ToInt(2),
 		}, nil
 	}
@@ -248,17 +255,17 @@ func getParser() *Parser {
 
 	g["INFLUX"].Action = func(v *Values, d Any) (Any, error) {
 		options := parseOptions(v)
-		influx := NewInflux(options)
+		iflux := influx.NewInflux(options)
 
 		for _, value := range v.Vs {
-			if template, ok := value.(*Template); ok {
-				influx.AddTemplate(template)
-			} else if check, ok := value.(*Check); ok {
-				influx.AddCheck(check)
+			if template, ok := value.(*influx.Template); ok {
+				iflux.AddTemplate(template)
+			} else if check, ok := value.(*influx.Check); ok {
+				iflux.AddCheck(check)
 			}
 		}
 
-		result.Monitors["influx"] = influx
+		result.Monitors["influx"] = iflux
 		return nil, nil
 	}
 
@@ -271,11 +278,11 @@ func getParser() *Parser {
 			preview = v.ToStr(3)
 		}
 
-		return &Template{
+		return &influx.Template{
 			Name:    v.ToStr(0),
-			body:    body,
-			preview: preview,
-			args:    args,
+			Body:    body,
+			Preview: preview,
+			Args:    args,
 		}, nil
 	}
 
@@ -285,14 +292,14 @@ func getParser() *Parser {
 			values = append(values, v.ToStr(i))
 		}
 
-		trigger, _ := v.Vs[v.Len()-1].(*Trigger)
+		trigger, _ := v.Vs[v.Len()-1].(*domain.Trigger)
 		info, _ := v.Vs[v.Len()-2].(string)
 
-		return &Check{
-			template: v.ToStr(0),
-			info:     info,
-			values:   values,
-			trigger:  trigger,
+		return &influx.Check{
+			Template: v.ToStr(0),
+			Info:     info,
+			Values:   values,
+			Trigger:  trigger,
 		}, nil
 	}
 

@@ -1,7 +1,11 @@
-package main
+package monitor
 
-import log "github.com/sirupsen/logrus"
-import "sync"
+import (
+	"sync"
+
+	"fuse/pkg/domain"
+	log "github.com/sirupsen/logrus"
+)
 
 type Fuse struct {
 	Monitors []Monitor
@@ -9,7 +13,7 @@ type Fuse struct {
 
 type Monitor interface {
 	GetName() string
-	RunWith(notifer *Notifer)
+	RunWith(notifer *domain.Notifer)
 }
 
 func NewFuse() *Fuse {
@@ -22,12 +26,12 @@ func (f *Fuse) AddMonitor(monitor Monitor) {
 	f.Monitors = append(f.Monitors, monitor)
 }
 
-func (f *Fuse) RunWith(notifer *Notifer) {
+func (f *Fuse) RunWith(notifer *domain.Notifer) {
 	var wg sync.WaitGroup
 
 	// TODO: send to another alter if slack is not available
 	if notifer.AlerterExists("slack") {
-		notifer.Good("slack", Message{
+		notifer.Good("slack", domain.Message{
 			From:  "fuse",
 			Title: "Fuse monitor v0.3.2",
 			Body:  "The monitor was restarted",

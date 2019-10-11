@@ -1,4 +1,4 @@
-package main
+package domain
 
 import (
 	log "github.com/sirupsen/logrus"

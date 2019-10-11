@@ -1,4 +1,4 @@
-package main
+package consul
 
 import (
 	"crypto/md5"
@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"fuse/pkg/domain"
 )
 
 //import "github.com/davecgh/go-spew/spew"
@@ -16,8 +18,8 @@ import (
 type Consul struct {
 	Services []*Service
 
-	client  *api.Client // consul api client
-	notifer *Notifer    // notifer to send alters to
+	client  *api.Client     // consul api client
+	notifer *domain.Notifer // notifer to send alters to
 
 	options map[string]string // TODO: replace with explicit declarations (remove parsing actions from Consul)
 }
@@ -25,7 +27,7 @@ type Consul struct {
 type Service struct {
 	Name    string
 	Alerts  []string
-	trigger *Trigger
+	Trigger *domain.Trigger
 }
 
 func (s *Service) GetReportId() string {
@@ -67,7 +69,7 @@ func (c *Consul) GetName() string {
 	return "consul"
 }
 
-func (c *Consul) RunWith(notifer *Notifer) {
+func (c *Consul) RunWith(notifer *domain.Notifer) {
 	interval, err := strconv.Atoi(c.options["interval"])
 
 	if err != nil {
@@ -88,14 +90,14 @@ func (c *Consul) addTriggers(interval int) {
 	mainAlert := c.options["alert"]
 
 	for _, service := range c.Services {
-		if service.trigger == nil {
-			service.trigger = c.defaultTrigger()
+		if service.Trigger == nil {
+			service.Trigger = c.defaultTrigger()
 		}
 
 		// create local var for closure function
 		service := service
 
-		service.trigger.callback = func(state *State, lastValue interface{}) error {
+		service.Trigger.Callback = func(state *domain.State, lastValue interface{}) error {
 			var alive string
 			if state.Name == "good" {
 				alive = "online"
@@ -106,7 +108,7 @@ func (c *Consul) addTriggers(interval int) {
 			title := fmt.Sprintf("SERVICE: *%s* in %s state", service.Name, strings.ToUpper(state.Name))
 			body := fmt.Sprintf("Service \"%s\" is %s more than %d sec.", service.Name, alive, interval*state.Cycles)
 
-			msg := Message{
+			msg := domain.Message{
 				IconUrl: "https://pbs.twimg.com/media/C5SO5KRVcAA6Ag6.png", // TODO: replace
 				From:    "consul",
 				Title:   title,
@@ -133,28 +135,28 @@ func (c *Consul) addTriggers(interval int) {
 	}
 }
 
-func (c *Consul) defaultTrigger() *Trigger {
-	trigger := NewTrigger(nil)
+func (c *Consul) defaultTrigger() *domain.Trigger {
+	trigger := domain.NewTrigger(nil)
 
-	trigger.AddState(&State{
+	trigger.AddState(&domain.State{
 		Name:     "good",
 		Cycles:   5,
-		operator: "=",
-		value:    "online",
+		Operator: "=",
+		Value:    "online",
 	})
 
-	trigger.AddState(&State{
+	trigger.AddState(&domain.State{
 		Name:     "warn",
 		Cycles:   5,
-		operator: "=",
-		value:    "offline",
+		Operator: "=",
+		Value:    "offline",
 	})
 
-	trigger.AddState(&State{
+	trigger.AddState(&domain.State{
 		Name:     "crit",
 		Cycles:   10,
-		operator: "=",
-		value:    "offline",
+		Operator: "=",
+		Value:    "offline",
 	})
 
 	return trigger
@@ -198,8 +200,8 @@ Loop:
 	}
 
 	if passing {
-		service.trigger.Touch("online")
+		service.Trigger.Touch("online")
 	} else {
-		service.trigger.Touch("offline")
+		service.Trigger.Touch("offline")
 	}
 }

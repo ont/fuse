@@ -1,4 +1,4 @@
-package main
+package domain
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ type Trigger struct {
 	state  *State   // current active state
 	states []*State // set of states to check
 
-	callback func(state *State, lastValue interface{}) error // callback to call after changing the state
+	Callback func(state *State, lastValue interface{}) error // callback to call after changing the state
 }
 
 type State struct {
@@ -19,8 +19,8 @@ type State struct {
 	Cycles int    // if counter > Cycles then state considered to be active
 
 	counter  int         // count of successfull consecutive Touch'es
-	value    interface{} // value to compare to in Touch
-	operator string      // type of comparision operation (it is always "=" for strings)
+	Value    interface{} // value to compare to in Touch
+	Operator string      // type of comparision operation (it is always "=" for strings)
 	err      bool        // set to true after comparision error in Touch
 }
 
@@ -28,7 +28,7 @@ func NewTrigger(callback func(*State, interface{}) error) *Trigger {
 	return &Trigger{
 		state:    nil,
 		states:   make([]*State, 0),
-		callback: callback,
+		Callback: callback,
 	}
 }
 
@@ -113,7 +113,7 @@ func (t *Trigger) activateState(state *State, value interface{}) {
 	}
 
 	// inform via callback function
-	err := t.callback(t.state, value)
+	err := t.Callback(t.state, value)
 	if err != nil {
 		log.WithFields(log.Fields{"err": err}).Debug("trigger: error during calling callback")
 	}
@@ -179,7 +179,7 @@ func (s *State) test(value interface{}) bool {
 		log.WithFields(log.Fields{
 			"state":       s.Name,
 			"value":       fmt.Sprintf("%s", value),
-			"state_value": fmt.Sprintf("%s", s.value),
+			"state_value": fmt.Sprintf("%s", s.Value),
 		}).Warn("trigger: wrong comparision")
 	}
 
@@ -188,7 +188,7 @@ func (s *State) test(value interface{}) bool {
 
 func (s *State) testString(value interface{}) (bool, bool) {
 	tmp, ok1 := value.(string)
-	svalue, ok2 := s.value.(string)
+	svalue, ok2 := s.Value.(string)
 
 	if !ok1 || !ok2 {
 		return false, false
@@ -211,7 +211,7 @@ func (s *State) testInt(value interface{}) (bool, bool) {
 
 func (s *State) testFloat(value interface{}) (bool, bool) {
 	tmp, ok1 := value.(float64)
-	fvalue, ok2 := s.value.(float64)
+	fvalue, ok2 := s.Value.(float64)
 
 	if !ok1 || !ok2 {
 		return false, false
@@ -219,7 +219,7 @@ func (s *State) testFloat(value interface{}) (bool, bool) {
 
 	//log.WithFields(log.Fields{"state" : s.Name, "value" : value, "state_value" : s.value, "operator": s.operator}).Debug("trigger: comparing as floats")
 
-	switch s.operator {
+	switch s.Operator {
 	case "=":
 		return tmp == fvalue, true
 	case "<":

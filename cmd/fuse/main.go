@@ -7,6 +7,10 @@ import (
 	"io/ioutil"
 	//"strconv"
 	//"github.com/davecgh/go-spew/spew"
+	"fuse/pkg/domain"
+	"fuse/pkg/monitor"
+	"fuse/pkg/parser"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -25,20 +29,20 @@ func main() {
 	bytes, err := ioutil.ReadFile(os.Args[len(os.Args)-1])
 
 	// parse config
-	result, err := Parse(string(bytes))
+	result, err := parser.Parse(string(bytes))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error during parsing config file:", err)
 		os.Exit(1)
 	}
 
 	// prepare notifier
-	notifer := NewNotifer()
+	notifer := domain.NewNotifer()
 	for name, alerter := range result.Alerters {
 		notifer.AddAlerter(name, alerter)
 	}
 
 	// prepare monitors and create fuse
-	fuse := NewFuse()
+	fuse := monitor.NewFuse()
 	for _, monitor := range result.Monitors {
 		fuse.AddMonitor(monitor)
 	}

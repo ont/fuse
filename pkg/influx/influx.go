@@ -1,4 +1,4 @@
-package main
+package influx
 
 import (
 	"crypto/md5"
@@ -11,11 +11,13 @@ import (
 	//"github.com/davecgh/go-spew/spew"
 	"github.com/influxdata/influxdb/client/v2"
 	log "github.com/sirupsen/logrus"
+
+	"fuse/pkg/domain"
 )
 
 type Influx struct {
-	client  client.Client // influx api client
-	notifer *Notifer      // notifer to send alters to
+	client  client.Client   // influx api client
+	notifer *domain.Notifer // notifer to send alters to
 
 	options   map[string]string // TODO: replace with explicit declarations (remove parsing actions from Influx)
 	templates map[string]*Template
@@ -24,22 +26,22 @@ type Influx struct {
 
 type Template struct {
 	Name    string
-	body    string
-	preview string
-	args    []string
+	Body    string
+	Preview string
+	Args    []string
 }
 
 type Check struct {
-	template string // name of template
-	info     string // info string for alert message
-	values   []string
-	trigger  *Trigger
+	Template string // name of template
+	Info     string // info string for alert message
+	Values   []string
+	Trigger  *domain.Trigger
 }
 
 // TODO: add constructor and save calculation into cache-field
 func (c *Check) GetReportId() string {
 	h := md5.New()
-	io.WriteString(h, c.template+"|"+c.info+"|"+strings.Join(c.values, "|"))
+	io.WriteString(h, c.Template+"|"+c.Info+"|"+strings.Join(c.Values, "|"))
 	return fmt.Sprintf("%.5x", h.Sum(nil))
 }
 
@@ -150,7 +152,7 @@ func (i *Influx) GetName() string {
  * Monitor interface implementation.
  * Implements main checking loop for influx.
  */
-func (i *Influx) RunWith(notifer *Notifer) {
+func (i *Influx) RunWith(notifer *domain.Notifer) {
 	interval, err := strconv.Atoi(i.options["interval"])
 
 	if err != nil {
@@ -165,7 +167,7 @@ func (i *Influx) RunWith(notifer *Notifer) {
 
 		for _, check := range i.checks {
 
-			log.WithFields(log.Fields{"info": check.info}).Debug("influx: next check")
+			log.WithFields(log.Fields{"info": check.Info}).Debug("influx: next check")
 
 			sql := i.getSqlForCheck(check)
 			log.WithFields(log.Fields{"sql": strings.TrimSpace(sql)}).Debug("influx: executing sql")
@@ -179,12 +181,12 @@ func (i *Influx) RunWith(notifer *Notifer) {
 			log.WithFields(log.Fields{"value": value}).Debug("influx: sending value to trigger")
 
 			if value == nil {
-				check.trigger.Fail("<nil value>")
+				check.Trigger.Fail("<nil value>")
 				log.Debug("influx: failing trigger due to 'nil' value")
 				continue
 			}
 
-			check.trigger.Touch(value)
+			check.Trigger.Touch(value)
 		}
 
 		time.Sleep(time.Duration(interval) * time.Second)
@@ -201,10 +203,10 @@ func (i *Influx) initTriggers(interval int) {
 		_check := check // catch var for closure
 
 		// assign new callback-closure
-		check.trigger.callback = func(state *State, lastValue interface{}) error {
+		check.Trigger.Callback = func(state *domain.State, lastValue interface{}) error {
 			details := i.getDetailsForCheck(_check)
 			details["value"] = fmt.Sprintf("%v", lastValue)
-			details["template"] = _check.template
+			details["template"] = _check.Template
 
 			sql := i.getSqlForCheck(_check)
 
@@ -218,17 +220,17 @@ func (i *Influx) initTriggers(interval int) {
 				body = fmt.Sprintf("*CRITICAL:* query has bad value for more than %d sec. ```%s```", interval*state.Cycles, sql)
 			}
 
-			msg := Message{
+			msg := domain.Message{
 				IconUrl: "https://aperogeek.fr/wp-content/uploads/2017/04/influx_logo.png", // TODO: replace
 				From:    "influx",
-				Title:   fmt.Sprintf("QUERY: *%s* in %s state", _check.info, strings.ToUpper(state.Name)),
+				Title:   fmt.Sprintf("QUERY: *%s* in %s state", _check.Info, strings.ToUpper(state.Name)),
 				Body:    body,
 				Details: details,
 			}
 
 			msg.ParseLevel(state.Name)
 
-			if msg.Level != MSG_LVL_GOOD {
+			if msg.Level != domain.MSG_LVL_GOOD {
 				preview := i.getPreview(&msg, _check)
 				if preview == "" {
 					msg.Body += "\n`no preview query available`\n"
@@ -238,7 +240,7 @@ func (i *Influx) initTriggers(interval int) {
 			}
 
 			switch msg.Level {
-			case MSG_LVL_GOOD:
+			case domain.MSG_LVL_GOOD:
 				i.notifer.Resolve(_check.GetReportId())
 			default:
 				i.notifer.Report(_check.GetReportId(), msg)
@@ -256,8 +258,8 @@ func (i *Influx) initTriggers(interval int) {
  * Returns empty string preview query was not provided in config file.
  * This method will retry 5 times before fail during influx preview querying.
  */
-func (i *Influx) getPreview(msg *Message, check *Check) string {
-	log.WithFields(log.Fields{"check": check.info}).Info("influx: executing preview query")
+func (i *Influx) getPreview(msg *domain.Message, check *Check) string {
+	log.WithFields(log.Fields{"check": check.Info}).Info("influx: executing preview query")
 
 	var preview string
 	sql := i.getSqlPreviewForCheck(check)
@@ -298,7 +300,7 @@ func (i *Influx) getPreview(msg *Message, check *Check) string {
 
 		// TODO: config value for number of retries?
 		if try >= 5 {
-			log.WithFields(log.Fields{"check": check.info}).Error("influx: executing preview query failed after 5 retries")
+			log.WithFields(log.Fields{"check": check.Info}).Error("influx: executing preview query failed after 5 retries")
 			preview = fmt.Sprintf("Influx error: %s", err)
 			break
 		}
@@ -311,10 +313,10 @@ func (i *Influx) getPreview(msg *Message, check *Check) string {
  * Helper for preparing message details field.
  */
 func (i *Influx) getDetailsForCheck(check *Check) map[string]string {
-	tpl, _ := i.templates[check.template]
+	tpl, _ := i.templates[check.Template]
 	str := ""
-	for i, arg := range tpl.args {
-		str += fmt.Sprintf("%s = \"%s\" \n", arg, check.values[i])
+	for i, arg := range tpl.Args {
+		str += fmt.Sprintf("%s = \"%s\" \n", arg, check.Values[i])
 	}
 
 	return map[string]string{
@@ -326,50 +328,50 @@ func (i *Influx) getDetailsForCheck(check *Check) map[string]string {
  * Finds SQL template for check and renders it.
  */
 func (i *Influx) getSqlForCheck(check *Check) string {
-	tpl, ok := i.templates[check.template]
+	tpl, ok := i.templates[check.Template]
 	if !ok {
-		log.WithFields(log.Fields{"module": "influx"}).Fatalf("influx: missing template '%s'\n", check.template)
+		log.WithFields(log.Fields{"module": "influx"}).Fatalf("influx: missing template '%s'\n", check.Template)
 	}
 
-	return tpl.Format(check.values...)
+	return tpl.Format(check.Values...)
 }
 
 /*
  * Finds SQL preview template for check and renders it.
  */
 func (i *Influx) getSqlPreviewForCheck(check *Check) string {
-	tpl, ok := i.templates[check.template]
+	tpl, ok := i.templates[check.Template]
 	if !ok {
-		log.WithFields(log.Fields{"module": "influx"}).Fatalf("influx: missing template '%s'\n", check.template)
+		log.WithFields(log.Fields{"module": "influx"}).Fatalf("influx: missing template '%s'\n", check.Template)
 	}
 
-	return tpl.FormatPreview(check.values...)
+	return tpl.FormatPreview(check.Values...)
 }
 
 /*
  * Renders SQL template with values
  */
 func (t *Template) Format(values ...string) string {
-	return t.formatTemplate(t.body, values)
+	return t.formatTemplate(t.Body, values)
 }
 
 /*
  * Renders preview SQL template with values
  */
 func (t *Template) FormatPreview(values ...string) string {
-	return t.formatTemplate(t.preview, values)
+	return t.formatTemplate(t.Preview, values)
 }
 
 /*
  * Renders provided template.
  */
 func (t *Template) formatTemplate(tpl string, values []string) string {
-	if len(values) != len(t.args) {
-		log.WithFields(log.Fields{"values": values, "args": t.args}).Fatalln("influx: wrong call of template", t.Name, " - wrong amount of arguments")
+	if len(values) != len(t.Args) {
+		log.WithFields(log.Fields{"values": values, "args": t.Args}).Fatalln("influx: wrong call of template", t.Name, " - wrong amount of arguments")
 	}
 
 	res := tpl
-	for i, arg := range t.args {
+	for i, arg := range t.Args {
 		res = strings.Replace(res, "%"+arg, values[i], -1)
 	}
 
