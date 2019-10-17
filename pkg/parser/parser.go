@@ -101,7 +101,7 @@ func getParser() *Parser {
 
 		# Trigger
 		TRIGGER     ← STATE+
-		STATE       ← FNAME '(' STATE_VALUE ',' INT ('cycles' / 'cycle') ')'
+		STATE       ← FNAME '(' STATE_VALUE ',' INT ('cycles' / 'cycle') (',' ARG)? ')'
 		STATE_VALUE ← STRING / (COMPARATOR FLOAT)
 		COMPARATOR  ← < '<=' / '>=' / '<' / '>' / '=' >
 
@@ -236,14 +236,19 @@ func getParser() *Parser {
 	}
 
 	g["STATE"].Action = func(v *Values, d Any) (Any, error) {
-		//spew.Dump("STATE", v)
 		state_value, _ := v.Vs[1].(*StateValue)
-		return &domain.State{
+		state := &domain.State{
 			Name:     v.ToStr(0),
 			Operator: state_value.operator,
 			Value:    state_value.value,
 			Cycles:   v.ToInt(2),
-		}, nil
+		}
+
+		if v.Len() >= 4 && v.ToStr(3) == "allow_nil" {
+			state.AllowNil = true
+		}
+
+		return state, nil
 	}
 
 	g["STATE_VALUE"].Action = func(v *Values, d Any) (Any, error) {

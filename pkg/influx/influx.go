@@ -160,7 +160,7 @@ func (i *Influx) RunWith(notifer *domain.Notifer) {
 	}
 
 	i.notifer = notifer
-	i.initTriggers(interval)
+	i.setupTriggers(interval)
 
 	for {
 		log.Info("influx: check loop...")
@@ -180,11 +180,11 @@ func (i *Influx) RunWith(notifer *domain.Notifer) {
 
 			log.WithFields(log.Fields{"value": value}).Debug("influx: sending value to trigger")
 
-			if value == nil {
-				check.Trigger.Fail("<nil value>")
-				log.Debug("influx: failing trigger due to 'nil' value")
-				continue
-			}
+			//if value == nil {
+			//	check.Trigger.Fail("<nil value>")
+			//	log.Debug("influx: failing trigger due to 'nil' value")
+			//	continue
+			//}
 
 			check.Trigger.Touch(value)
 		}
@@ -196,10 +196,12 @@ func (i *Influx) RunWith(notifer *domain.Notifer) {
 /*
  * Prepare trigger's callback for every check.
  */
-func (i *Influx) initTriggers(interval int) {
+func (i *Influx) setupTriggers(interval int) {
 	channel := i.options["alert"]
 
 	for _, check := range i.checks {
+		check.Trigger.SetupNilStates()
+
 		_check := check // catch var for closure
 
 		// assign new callback-closure

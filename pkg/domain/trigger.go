@@ -22,6 +22,8 @@ type State struct {
 	Value    interface{} // value to compare to in Touch
 	Operator string      // type of comparision operation (it is always "=" for strings)
 	err      bool        // set to true after comparision error in Touch
+
+	AllowNil bool // all <nil> values will trigger this state
 }
 
 func NewTrigger(callback func(*State, interface{}) error) *Trigger {
@@ -42,6 +44,35 @@ func (t *Trigger) AddState(state *State) {
 }
 
 /*
+ * Checks that only one state of trigger has AllowNil == true.
+ * If no states has AllowNil flag set then if try to set it up for any "crit" state.
+ */
+func (t *Trigger) SetupNilStates() {
+	var critState *State
+	cnt := 0
+
+	for _, state := range t.states {
+		// TODO: change t.states to map[string]*State with check order in separate field
+		if state.Name == STATE_CRIT {
+			critState = state
+		}
+
+		if state.AllowNil {
+			cnt += 1
+		}
+	}
+
+	switch {
+	case cnt > 1:
+		log.WithField("cnt", cnt).Fatalln("trigger: only one state of trigger can be with 'allow_nil' option")
+	case cnt == 0:
+		if critState != nil {
+			critState.AllowNil = true
+		}
+	}
+}
+
+/*
  * Compares "value" with each internal state's value.
  * Type of "value" must be string or float64 (it doesn't convert int to float).
  */
@@ -50,8 +81,8 @@ func (t *Trigger) Touch(value interface{}) {
 
 	log.WithFields(log.Fields{"value": value}).Debug("trigger: comparing with value")
 	for _, state := range t.states {
-		canReset := (state != t.state) // reset only non-active states
-		testOk := state.Touch(value, canReset)
+		doReset := (state != t.state) // reset only non-active states
+		testOk := state.Touch(value, doReset)
 
 		// current test is passed and state is ready to be active
 		if testOk && state.IsReady() {
@@ -171,8 +202,11 @@ func (s *State) test(value interface{}) bool {
 	if res, ok3 = s.testInt(value); ok3 && res {
 		return true
 	}
+	if s.testNil(value) {
+		return true
+	}
 
-	if !ok1 && !ok2 && !ok3 {
+	if value != nil && (!ok1 && !ok2 && !ok3) {
 		s.err = true
 
 		// TODO: doesn't clutter output during tests
@@ -233,4 +267,8 @@ func (s *State) testFloat(value interface{}) (bool, bool) {
 	default:
 		return tmp == fvalue, true
 	}
+}
+
+func (s *State) testNil(value interface{}) bool {
+	return s.AllowNil && value == nil
 }

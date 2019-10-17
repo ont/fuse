@@ -4,6 +4,77 @@ import "testing"
 import "github.com/stretchr/testify/assert"
 import log "github.com/sirupsen/logrus"
 
+func TestStateAllowNilValue(t *testing.T) {
+	matrix := map[interface{}]map[interface{}]bool{
+		"123":        {"123": true, "12": false, 123: false, nil: true},
+		float64(123): {"123": false, "12": false, 123: true, float64(123.0): true, nil: true},
+	}
+	for svalue, tests := range matrix {
+		for tvalue, result := range tests {
+			s := State{
+				Cycles:   1,
+				Value:    svalue,
+				AllowNil: true,
+			}
+			s.Touch(tvalue, true)
+			assert.Equalf(t, result, s.IsReady(), "Wrong state %#v for comparision %s == %s", s.IsReady(), svalue, tvalue)
+		}
+	}
+}
+
+func TestStateDisallowNilValue(t *testing.T) {
+	matrix := map[interface{}]map[interface{}]bool{
+		"123":        {"123": true, "12": false, 123: false, nil: false},
+		float64(123): {"123": false, "12": false, 123: true, float64(123.0): true, nil: false},
+	}
+	for svalue, tests := range matrix {
+		for tvalue, result := range tests {
+			s := State{
+				Cycles:   1,
+				Value:    svalue,
+				AllowNil: false,
+			}
+			s.Touch(tvalue, true)
+			assert.Equalf(t, result, s.IsReady(), "Wrong state %#v for comparision %s == %s", s.IsReady(), svalue, tvalue)
+		}
+	}
+}
+
+func TestAllowNilForCritIsSet(t *testing.T) {
+	trig := NewTrigger(nil)
+
+	goodState := &State{
+		Name:     "good",
+		Cycles:   1,
+		Value:    0,
+		AllowNil: false,
+	}
+
+	warnState := &State{
+		Name:     "warn",
+		Cycles:   1,
+		Value:    5,
+		AllowNil: false,
+	}
+
+	critState := &State{
+		Name:     "crit",
+		Cycles:   1,
+		Value:    10,
+		AllowNil: false,
+	}
+
+	trig.AddState(goodState)
+	trig.AddState(warnState)
+	trig.AddState(critState)
+
+	trig.SetupNilStates()
+
+	assert.Equalf(t, true, critState.AllowNil, "crit state must have AllowNil == true after SetupNilStates()")
+	assert.Equalf(t, false, warnState.AllowNil, "warn state must have AllowNil == false after SetupNilStates()")
+	assert.Equalf(t, false, goodState.AllowNil, "good state must have AllowNil == false after SetupNilStates()")
+}
+
 func TestStateMatrixEq(t *testing.T) {
 	matrix := map[interface{}]map[interface{}]bool{
 		"123":        {"123": true, "12": false, 123: false},
