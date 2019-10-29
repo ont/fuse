@@ -5,10 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 	"time"
-	//"github.com/davecgh/go-spew/spew"
+
 	"github.com/influxdata/influxdb/client/v2"
 	log "github.com/sirupsen/logrus"
 
@@ -19,7 +18,7 @@ type Influx struct {
 	client  client.Client   // influx api client
 	notifer *domain.Notifer // notifer to send alters to
 
-	options   map[string]string // TODO: replace with explicit declarations (remove parsing actions from Influx)
+	options   InfluxOptions
 	templates map[string]*Template
 	checks    []*Check
 }
@@ -45,19 +44,9 @@ func (c *Check) GetReportId() string {
 	return fmt.Sprintf("%.5x", h.Sum(nil))
 }
 
-func NewInflux(options map[string]string) *Influx {
-	optionsFull := map[string]string{
-		"url":      "localhost:8086",
-		"database": "telegraf",
-		"interval": "5",
-		"alert":    "",
-	}
-	for k, v := range options {
-		optionsFull[k] = v
-	}
-
+func NewInflux(options InfluxOptions) *Influx {
 	c, err := client.NewHTTPClient(client.HTTPConfig{
-		Addr:    optionsFull["url"],
+		Addr:    options.Address,
 		Timeout: 15 * time.Second,
 	})
 	if err != nil {
@@ -66,7 +55,7 @@ func NewInflux(options map[string]string) *Influx {
 
 	return &Influx{
 		client:    c,
-		options:   optionsFull,
+		options:   options,
 		templates: make(map[string]*Template),
 		checks:    make([]*Check, 0),
 	}
@@ -87,7 +76,7 @@ func (i *Influx) AddCheck(check *Check) {
 func (i *Influx) querySingleColumn(sql string) (interface{}, error) {
 	q := client.Query{
 		Command:  sql,
-		Database: i.options["database"],
+		Database: i.options.Database,
 	}
 
 	res, err := i.client.Query(q)
@@ -123,7 +112,7 @@ func (i *Influx) querySingleColumn(sql string) (interface{}, error) {
 func (i *Influx) queryMultipleColumns(sql string) (*client.Result, error) {
 	q := client.Query{
 		Command:  sql,
-		Database: i.options["database"],
+		Database: i.options.Database,
 	}
 
 	res, err := i.client.Query(q)
@@ -153,14 +142,8 @@ func (i *Influx) GetName() string {
  * Implements main checking loop for influx.
  */
 func (i *Influx) RunWith(notifer *domain.Notifer) {
-	interval, err := strconv.Atoi(i.options["interval"])
-
-	if err != nil {
-		log.WithFields(log.Fields{"value": i.options["interval"]}).Fatal("influx: wrong 'interval' value")
-	}
-
 	i.notifer = notifer
-	i.setupTriggers(interval)
+	i.setupTriggers(i.options.Interval)
 
 	for {
 		log.Info("influx: check loop...")
@@ -189,7 +172,7 @@ func (i *Influx) RunWith(notifer *domain.Notifer) {
 			check.Trigger.Touch(value)
 		}
 
-		time.Sleep(time.Duration(interval) * time.Second)
+		time.Sleep(time.Duration(i.options.Interval) * time.Second)
 	}
 }
 
@@ -197,7 +180,7 @@ func (i *Influx) RunWith(notifer *domain.Notifer) {
  * Prepare trigger's callback for every check.
  */
 func (i *Influx) setupTriggers(interval int) {
-	channel := i.options["alert"]
+	channel := i.options.Alert
 
 	for _, check := range i.checks {
 		check.Trigger.SetupNilStates()

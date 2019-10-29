@@ -24,6 +24,7 @@ type Option struct {
 type ParseResult struct {
 	Alerters map[string]domain.Alerter
 	Monitors map[string]monitor.Monitor
+	Metrics  map[string]domain.Metric
 }
 
 // helper class for parsing
@@ -77,6 +78,7 @@ func getParser() *Parser {
 	result := &ParseResult{
 		make(map[string]domain.Alerter),
 		make(map[string]monitor.Monitor),
+		make(map[string]domain.Metric),
 	}
 
 	parser, _ := NewParser(`
@@ -277,7 +279,7 @@ func getParser() *Parser {
 	}
 
 	g["INFLUX"].Action = func(v *Values, d Any) (Any, error) {
-		options := parseOptions(v)
+		options := parseInfluxOptions(v)
 		iflux := influx.NewInflux(options)
 
 		for _, value := range v.Vs {
@@ -289,6 +291,8 @@ func getParser() *Parser {
 		}
 
 		result.Monitors["influx"] = iflux
+		result.Metrics["influx"] = influx.NewInfluxMetrics(options)
+
 		return nil, nil
 	}
 
@@ -387,6 +391,32 @@ func parseOptions(v *Values) map[string]string {
 	for _, any := range v.Vs {
 		if option, ok := any.(*Option); ok {
 			options[option.Key] = option.Value
+		}
+	}
+	return options
+}
+
+func parseInfluxOptions(v *Values) influx.InfluxOptions {
+	options := influx.DefaultInfluxOptions()
+	for _, any := range v.Vs {
+		if option, ok := any.(*Option); ok {
+			switch option.Key {
+			case "url":
+				options.Address = option.Value
+			case "database":
+				options.Database = option.Value
+			case "retention_policy":
+				options.RetentionPolicy = option.Value
+			case "interval":
+				interval, err := strconv.Atoi(option.Value)
+				if err != nil {
+					log.Fatalln("influx: wrong format for interval: ", err)
+				}
+
+				options.Interval = interval
+			case "alert":
+				options.Alert = option.Value
+			}
 		}
 	}
 	return options

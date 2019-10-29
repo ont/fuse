@@ -8,6 +8,7 @@ import (
 
 type Notifer struct {
 	Alerters map[string]Alerter
+	Metrics  map[string]Metric
 }
 
 const (
@@ -49,11 +50,16 @@ type Alerter interface {
 func NewNotifer() *Notifer {
 	return &Notifer{
 		Alerters: make(map[string]Alerter),
+		Metrics:  make(map[string]Metric),
 	}
 }
 
 func (n *Notifer) AddAlerter(channel string, alerter Alerter) {
 	n.Alerters[channel] = alerter
+}
+
+func (n *Notifer) AddMetric(name string, metric Metric) {
+	n.Metrics[name] = metric
 }
 
 func (n *Notifer) AlerterExists(name string) bool {
@@ -76,6 +82,7 @@ func (n *Notifer) Notify(level string, channels interface{}, msg Message) {
 }
 
 func (n *Notifer) Good(channels interface{}, msg Message) {
+	msg.Level = MSG_LVL_GOOD
 	n.notifyOneOrMany(channels, func(alerter Alerter) error {
 		log.WithField("alerter", alerter.GetName()).Info("alert: send Good message")
 		log.WithField("msg", msg).Debug("alert: message")
@@ -86,9 +93,12 @@ func (n *Notifer) Good(channels interface{}, msg Message) {
 		}
 		return err
 	})
+
+	n.sendMetrics(msg)
 }
 
 func (n *Notifer) Warn(channels interface{}, msg Message) {
+	msg.Level = MSG_LVL_WARN
 	n.notifyOneOrMany(channels, func(alerter Alerter) error {
 		log.WithField("channel", alerter.GetName()).Info("alert: send Warn message")
 		log.WithField("msg", msg).Debug("alert: message")
@@ -99,9 +109,12 @@ func (n *Notifer) Warn(channels interface{}, msg Message) {
 		}
 		return err
 	})
+
+	n.sendMetrics(msg)
 }
 
 func (n *Notifer) Crit(channels interface{}, msg Message) {
+	msg.Level = MSG_LVL_CRIT
 	n.notifyOneOrMany(channels, func(alerter Alerter) error {
 		log.WithField("channel", alerter.GetName()).Info("alert: send Crit message")
 		log.WithField("msg", msg).Debug("alert: message")
@@ -112,6 +125,8 @@ func (n *Notifer) Crit(channels interface{}, msg Message) {
 		}
 		return err
 	})
+
+	n.sendMetrics(msg)
 }
 
 func (n *Notifer) Start() {
@@ -169,6 +184,14 @@ func (n *Notifer) notifyChannel(channel string, callback func(Alerter) error) {
 	}
 }
 
+func (n *Notifer) sendMetrics(msg Message) {
+	for channel, metric := range n.Metrics {
+		if err := metric.Save(msg); err != nil {
+			log.WithError(err).WithField("channel", channel).Error("error sending metric")
+		}
+	}
+}
+
 func (m *Message) ParseLevel(level string) {
 	switch level {
 	case "good":
@@ -179,5 +202,18 @@ func (m *Message) ParseLevel(level string) {
 		m.Level = MSG_LVL_CRIT
 	default:
 		m.Level = MSG_LVL_UNKN
+	}
+}
+
+func (m *Message) LevelToStr() string {
+	switch m.Level {
+	case MSG_LVL_CRIT:
+		return "crit"
+	case MSG_LVL_GOOD:
+		return "good"
+	case MSG_LVL_WARN:
+		return "warn"
+	default:
+		return "unknown"
 	}
 }

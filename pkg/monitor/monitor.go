@@ -3,7 +3,9 @@ package monitor
 import (
 	"sync"
 
+	"fuse/pkg/config"
 	"fuse/pkg/domain"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -35,7 +37,7 @@ func (f *Fuse) RunWith(notifer *domain.Notifer) {
 	if notifer.AlerterExists("slack") {
 		notifer.Good("slack", domain.Message{
 			From:  "fuse",
-			Title: "Fuse monitor v0.4.0",
+			Title: "Fuse monitor (" + config.AppVersion + ") restarted",
 			Body:  "The monitor was restarted",
 		})
 	}

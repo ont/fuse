@@ -41,6 +41,10 @@ func main() {
 		notifer.AddAlerter(name, alerter)
 	}
 
+	for name, metric := range result.Metrics {
+		notifer.AddMetric(name, metric)
+	}
+
 	// prepare monitors and create fuse
 	fuse := monitor.NewFuse()
 	for _, monitor := range result.Monitors {
