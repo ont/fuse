@@ -189,9 +189,12 @@ func (i *Influx) setupTriggers(interval int) {
 
 		// assign new callback-closure
 		check.Trigger.Callback = func(state *domain.State, lastValue interface{}) error {
-			details := i.getDetailsForCheck(_check)
-			details["value"] = fmt.Sprintf("%v", lastValue)
-			details["template"] = _check.Template
+			args := i.getArgsForCheck(_check)
+
+			details := map[string]string{
+				"value":    fmt.Sprintf("%v", lastValue),
+				"template": _check.Template,
+			}
 
 			sql := i.getSqlForCheck(_check)
 
@@ -211,6 +214,7 @@ func (i *Influx) setupTriggers(interval int) {
 				Title:   fmt.Sprintf("QUERY: *%s* in %s state", _check.Info, strings.ToUpper(state.Name)),
 				Body:    body,
 				Details: details,
+				Args:    args,
 			}
 
 			msg.ParseLevel(state.Name)
@@ -297,16 +301,15 @@ func (i *Influx) getPreview(msg *domain.Message, check *Check) string {
 /*
  * Helper for preparing message details field.
  */
-func (i *Influx) getDetailsForCheck(check *Check) map[string]string {
+func (i *Influx) getArgsForCheck(check *Check) map[string]interface{} {
 	tpl, _ := i.templates[check.Template]
-	str := ""
+
+	args := make(map[string]interface{})
 	for i, arg := range tpl.Args {
-		str += fmt.Sprintf("%s = \"%s\" \n", arg, check.Values[i])
+		args[arg] = check.Values[i]
 	}
 
-	return map[string]string{
-		"args": str,
-	}
+	return args
 }
 
 /*

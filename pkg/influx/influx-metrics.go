@@ -1,6 +1,7 @@
 package influx
 
 import (
+	"fmt"
 	"fuse/pkg/domain"
 	"time"
 
@@ -70,6 +71,10 @@ func (i *InfluxMetrics) prepareTagValues(msg domain.Message) (map[string]string,
 		default:
 			tags[k] = v
 		}
+	}
+
+	for k, v := range msg.Args {
+		tags[k] = fmt.Sprintf("%v", v)
 	}
 
 	if len(values) == 0 {

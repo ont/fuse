@@ -32,6 +32,7 @@ type Message struct {
 
 	// additional info as field-value pairs
 	Details map[string]string
+	Args    map[string]interface{}
 }
 
 type Alerter interface {

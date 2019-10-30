@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"fuse/pkg/domain"
+
 	"github.com/nlopes/slack"
 	//"github.com/davecgh/go-spew/spew"
 )
@@ -80,30 +81,40 @@ func (s *SlackClient) messageToAttachments(msg domain.Message) []slack.Attachmen
 			Title:      msg.Title,
 			Text:       msg.Body,
 			MarkdownIn: []string{"text"},
-			Fields:     s.makeFields(msg.Details),
+			Fields:     s.makeFields(msg),
 			Footer:     fmt.Sprintf("%s | %s", msg.From, time.Now().Format("2006-01-02 15:04:05")),
 			FooterIcon: msg.IconUrl,
 		},
 	}
 }
 
-func (s *SlackClient) makeFields(details map[string]string) []slack.AttachmentField {
-	if details == nil {
+func (s *SlackClient) makeFields(msg domain.Message) []slack.AttachmentField {
+	if len(msg.Details) == 0 && len(msg.Args) == 0 {
 		return nil
 	}
 
-	fields := make([]slack.AttachmentField, 0, len(details))
+	fields := make([]slack.AttachmentField, 0)
 
-	keys := make([]string, 0, len(details))
-	for key, _ := range details {
+	keys := make([]string, 0)
+	kv := make(map[string]interface{})
+	for key, value := range msg.Details {
 		keys = append(keys, key)
+		kv[key] = value
 	}
+
+	args := ""
+	for key, value := range msg.Args {
+		args += fmt.Sprintf("%s = \"%s\" \n", key, value)
+	}
+	keys = append(keys, "args")
+	kv["args"] = args
+
 	sort.Strings(keys)
 
 	for _, name := range keys {
 		fields = append(fields, slack.AttachmentField{
 			Title: name,
-			Value: details[name],
+			Value: fmt.Sprintf("%v", kv[name]),
 			Short: true,
 		})
 	}
