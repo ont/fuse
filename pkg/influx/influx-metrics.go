@@ -77,9 +77,7 @@ func (i *InfluxMetrics) prepareTagValues(msg domain.Message) (map[string]string,
 		tags[k] = fmt.Sprintf("%v", v)
 	}
 
-	if len(values) == 0 {
-		values["event"] = true
-	}
+	values["event"] = 1 // always add special value-field for allowing graphs in grafana
 
 	return tags, values
 }
